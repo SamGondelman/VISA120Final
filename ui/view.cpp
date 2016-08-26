@@ -6,13 +6,15 @@
 #include <iostream>
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_time(), m_timer(), m_captureMouse(true)
+    m_time(), m_timer(), m_captureMouse(false)
 {
     // View needs all mouse move events, not just mouse drag events
     setMouseTracking(true);
 
-    // Hide the cursor since this is a fullscreen app
-    QApplication::setOverrideCursor(Qt::BlankCursor);
+    // Hide the cursor
+    if(m_captureMouse) {
+        QApplication::setOverrideCursor(Qt::BlankCursor);
+    }
 
     // View needs keyboard focus
     setFocusPolicy(Qt::StrongFocus);
@@ -44,8 +46,6 @@ void View::initializeGL()
     // frame rate depends on the operating system and other running programs)
     m_time.start();
     m_timer.start(1000 / 60);
-
-    QCursor::setPos(mapToGlobal(QPoint(width() / 2, height() / 2)));
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
