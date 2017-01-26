@@ -6,15 +6,10 @@
 #include <iostream>
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_time(), m_timer(), m_captureMouse(false)
+    m_time(), m_timer()
 {
     // View needs all mouse move events, not just mouse drag events
     setMouseTracking(true);
-
-    // Hide the cursor
-    if(m_captureMouse) {
-        QApplication::setOverrideCursor(Qt::BlankCursor);
-    }
 
     // View needs keyboard focus
     setFocusPolicy(Qt::StrongFocus);
@@ -27,12 +22,7 @@ View::~View()
 {
 }
 
-void View::initializeGL()
-{
-    // All OpenGL initialization *MUST* be done during or after this
-    // method. Before this method is called, there is no active OpenGL
-    // context and all OpenGL calls have no effect.
-
+void View::initializeGL() {
     //initialize glew
     glewExperimental = GL_TRUE;
     GLenum err = glewInit();
@@ -42,9 +32,8 @@ void View::initializeGL()
     }
     std::cout << "Using GLEW " <<  glewGetString( GLEW_VERSION ) << std::endl;
 
-    // Start a timer that will try to get 60 frames per second (the actual
-    // frame rate depends on the operating system and other running programs)
     m_time.start();
+    // TODO: change to / 90
     m_timer.start(1000 / 60);
 
     glEnable(GL_DEPTH_TEST);
@@ -53,27 +42,24 @@ void View::initializeGL()
     glFrontFace(GL_CCW);
 }
 
-void View::paintGL()
-{
+void View::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // TODO: Implement the demo rendering here
+
 }
 
-void View::resizeGL(int w, int h)
-{
+void View::resizeGL(int w, int h) {
     float ratio = static_cast<QGuiApplication *>(QCoreApplication::instance())->devicePixelRatio();
     w = static_cast<int>(w / ratio);
     h = static_cast<int>(h / ratio);
     glViewport(0, 0, w, h);
 }
 
-void View::mousePressEvent(QMouseEvent *event)
-{
+void View::mousePressEvent(QMouseEvent *event) {
+
 }
 
-void View::mouseMoveEvent(QMouseEvent *event)
-{
+void View::mouseMoveEvent(QMouseEvent *event) {
     // This starter code implements mouse capture, which gives the change in
     // mouse position since the last mouse movement. The mouse needs to be
     // recentered after every movement because it might otherwise run into
@@ -91,25 +77,23 @@ void View::mouseMoveEvent(QMouseEvent *event)
     }
 }
 
-void View::mouseReleaseEvent(QMouseEvent *event)
-{
+void View::mouseReleaseEvent(QMouseEvent *event) {
+
 }
 
-void View::keyPressEvent(QKeyEvent *event)
-{
+void View::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Escape) QApplication::quit();
 
     // TODO: Handle keyboard presses here
 }
 
-void View::keyReleaseEvent(QKeyEvent *event)
-{
+void View::keyReleaseEvent(QKeyEvent *event) {
+
 }
 
-void View::tick()
-{
+void View::tick() {
     // Get the number of seconds since the last tick (variable update rate)
-    float seconds = m_time.restart() * 0.001f;
+    float dt = m_time.restart() * 0.001f;
 
     // TODO: Implement the demo update here
 

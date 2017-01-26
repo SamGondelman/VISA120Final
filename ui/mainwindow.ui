@@ -11,11 +11,20 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>A CS123 Final</string>
+   <string>Manus</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
-    <property name="margin">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
      <number>0</number>
     </property>
     <item>
@@ -28,7 +37,7 @@
  <customwidgets>
   <customwidget>
    <class>View</class>
-   <extends>QGLWidget</extends>
+   <extends>QWidget</extends>
    <header>view.h</header>
   </customwidget>
  </customwidgets>
