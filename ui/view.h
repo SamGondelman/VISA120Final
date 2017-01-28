@@ -7,6 +7,8 @@
 #include <QTimer>
 #include <memory>
 
+#include "glm/glm.hpp"
+
 class CS123Shader;
 class FBO;
 class SphereMesh;
@@ -27,6 +29,12 @@ enum DrawMode {
     DEFAULT
 };
 
+enum World {
+    WORLD_DEMO = 0,
+    WORLD_1,
+    WORLD_2
+};
+
 class View : public QGLWidget {
     Q_OBJECT
 
@@ -42,10 +50,16 @@ private:
     QTimer m_timer;
     float m_globalTime;
 
+    // Light World
+    glm::vec3 m_lightOrigin;
+    float m_lightTime;
+
     // OpenGL drawing stuff
     DrawMode m_drawMode;
+    World m_world;
 
-    std::unique_ptr<CS123Shader> m_deferredProgram;
+    std::shared_ptr<CS123Shader> m_deferredProgram;
+    std::shared_ptr<CS123Shader> m_lightWorldProgram;
     std::unique_ptr<FBO> m_deferredBuffer;
 
     std::unique_ptr<CS123Shader> m_lightingProgram;
@@ -75,7 +89,10 @@ private:
 
     std::vector<Light> m_lights;
 
-    void drawGeometry();
+    void drawGeometry(std::shared_ptr<CS123Shader> program);
+    void worldUpdate(float dt);
+    void setLights();
+    std::shared_ptr<CS123Shader> getWorldProgram();
 
     void initializeGL();
     void paintGL();

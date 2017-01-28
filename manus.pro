@@ -80,6 +80,7 @@ DEFINES += GLM_SWIZZLE GLM_FORCE_RADIANS
 OTHER_FILES += \
     shaders/shader.vert \
     shaders/shader.frag \
+    shaders/lightWorld.frag \
     shaders/lighting.vert \
     shaders/lighting.frag \
     shaders/bright.frag \

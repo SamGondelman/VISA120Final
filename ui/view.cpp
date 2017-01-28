@@ -2,7 +2,6 @@
 
 #include "viewformat.h"
 #include "ResourceLoader.h"
-#include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
@@ -20,7 +19,9 @@
 #include <iostream>
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_exposure(1.0f), m_useAdaptiveExposure(true)
+    m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_1),
+    m_exposure(1.0f), m_useAdaptiveExposure(true),
+    m_lightOrigin(glm::vec3(0)), m_lightTime(INFINITY)
 {
     // View needs all mouse move events, not just mouse drag events
     setMouseTracking(true);
@@ -58,7 +59,11 @@ void View::initializeGL() {
 
     std::string vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
     std::string fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.frag");
-    m_deferredProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
+    m_deferredProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
+
+    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
+    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lightWorld.frag");
+    m_lightWorldProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.frag");
@@ -86,8 +91,7 @@ void View::initializeGL() {
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/bloom.frag");
     m_bloomProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
-    m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
-    m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
+    setLights();
 
 }
 
@@ -104,43 +108,49 @@ void View::paintGL() {
     // Draw to deferred buffer
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
-    m_deferredProgram->bind();
+
+    auto worldProgram = getWorldProgram();
+
+    worldProgram->bind();
     m_deferredBuffer->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glm::mat4 V = glm::lookAt(eye, center, up);
-    m_deferredProgram->setUniform("V", V);
+    worldProgram->setUniform("V", V);
     glm::mat4 P = glm::perspective(fieldOfViewY, aspectRatio, nearClipPlane, farClipPlane);
-    m_deferredProgram->setUniform("P", P);
+    worldProgram->setUniform("P", P);
 
     if (m_drawMode != DrawMode::LIGHTS) {
-        drawGeometry();
+        drawGeometry(worldProgram);
     } else {
         // Draw point lights as geometry
         for (auto& light : m_lights) {
             if (light.type == LightType::LIGHT_POINT) {
                 glm::mat4 M = glm::translate(light.pos) * glm::scale(glm::vec3(2.0f * light.radius));
-                m_deferredProgram->setUniform("M", M);
+                worldProgram->setUniform("M", M);
                 CS123SceneMaterial mat;
                 mat.cAmbient = glm::vec4(light.col, 1);
-                m_deferredProgram->applyMaterial(mat);
+                worldProgram->applyMaterial(mat);
                 m_lightSphere->draw();
             }
         }
     }
 
     m_deferredBuffer->unbind();
-    m_deferredProgram->unbind();
+    worldProgram->unbind();
 
-    // Lighting and drawing to screen
+    // Drawing to screen
     if (m_drawMode == DrawMode::POSITION || m_drawMode == DrawMode::NORMAL || m_drawMode == DrawMode::AMBIENT ||
             m_drawMode == DrawMode::LIGHTS) {
+        // No lighting
         glBindFramebuffer(GL_READ_FRAMEBUFFER, m_deferredBuffer->getId());
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         int offset = m_drawMode != DrawMode::LIGHTS ? m_drawMode : DrawMode::AMBIENT;
         glReadBuffer(GL_COLOR_ATTACHMENT0 + offset);
         glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     } else {
+        // Lighting
+        m_lightingProgram->bind();
         m_lightingBuffer->bind();
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE);
@@ -157,8 +167,7 @@ void View::paintGL() {
             glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         }
 
-        m_lightingProgram->bind();
-
+        // Diffuse and/or specular terms
         m_lightingProgram->setUniform("useDiffuse",(useLighting || m_drawMode == DrawMode::DIFFUSE) ? 1.0f : 0.0f);
         m_lightingProgram->setUniform("useSpecular", (useLighting || m_drawMode == DrawMode::SPECULAR) ? 1.0f : 0.0f);
         m_lightingProgram->setUniform("screenSize", glm::vec2(m_width, m_height));
@@ -184,12 +193,14 @@ void View::paintGL() {
             // Draw light
             glm::vec3 dist = light.pos - eye;
             if (light.type == LightType::LIGHT_POINT && glm::dot(dist, dist) > light.radius * light.radius) {
+                // Outside point light
                 m_lightingProgram->setUniform("worldSpace", 1.0f);
 
                 glm::mat4 M = glm::translate(light.pos) * glm::scale(glm::vec3(2.0f * light.radius));
                 m_lightingProgram->setUniform("M", M);
                 m_lightSphere->draw();
             } else {
+                // Inside point light or directional light
                 m_lightingProgram->setUniform("worldSpace", 0.0f);
 
                 m_fullscreenQuad->draw();
@@ -201,11 +212,14 @@ void View::paintGL() {
         glActiveTexture(GL_TEXTURE0);
 
         if (m_drawMode == DrawMode::DIFFUSE || m_drawMode == DrawMode::SPECULAR || m_drawMode == DrawMode::NO_HDR) {
+            // For debugging, draw lighting buffer before HDR/bloom
             glBindFramebuffer(GL_READ_FRAMEBUFFER, m_lightingBuffer->getId());
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
             glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         } else {
+            // HDR/bloom
+            // Extract bright areas
             m_brightProgram->bind();
             m_vblurBuffer->bind();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -220,6 +234,7 @@ void View::paintGL() {
             m_brightProgram->unbind();
 
             if (m_drawMode == DrawMode::BRIGHT) {
+                // Draw bright areas (already downscaled/upscaled but not blurred)
                 m_textureProgram->bind();
                 glViewport(0, 0, m_width, m_height);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -231,6 +246,7 @@ void View::paintGL() {
 
                 m_textureProgram->unbind();
             } else {
+                // Blur bright areas
                 bool horizontal = true;
                 for (int i = 0; i < 2; i++) {
                     auto from = horizontal ? m_vblurBuffer : m_hblurBuffer;
@@ -254,6 +270,7 @@ void View::paintGL() {
                 }
 
                 if (m_drawMode == DrawMode::BRIGHT_BLUR) {
+                    // Draw blurred bright areas
                     m_textureProgram->bind();
                     glViewport(0, 0, m_width, m_height);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -265,6 +282,7 @@ void View::paintGL() {
 
                     m_textureProgram->unbind();
                 } else {
+                    // Calculate adaptive exposure
                     if (m_useAdaptiveExposure) {
                         m_lightingBuffer->getColorAttachment(0).bind();
                         glGenerateMipmap(GL_TEXTURE_2D);
@@ -280,6 +298,7 @@ void View::paintGL() {
                         m_exposure = 1.0f;
                     }
 
+                    // Recombine bloom, tonemapping
                     m_bloomProgram->bind();
                     glViewport(0, 0, m_width, m_height);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -326,47 +345,105 @@ void View::resizeGL(int w, int h) {
                                           GL_FLOAT);
 }
 
-void View::drawGeometry() {
-    // sphere 1
-    glm::mat4 M = glm::translate(glm::vec3(glm::sin(m_globalTime), 0.0f, 0.0f));
-    m_deferredProgram->setUniform("M", M);
+void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
+    glm::mat4 M;
     CS123SceneMaterial mat;
-    mat.cAmbient = glm::vec4(0.1, 0, 0, 1);
-    mat.cDiffuse = glm::vec4(0, 1, 0, 1);
-    mat.cSpecular = glm::vec4(0, 0, 1, 1);
-    mat.shininess = 20.0f;
-    m_deferredProgram->applyMaterial(mat);
-    m_sphere->draw();
+    if (m_world == World::WORLD_DEMO) {
+        // sphere 1
+        M = glm::translate(glm::vec3(glm::sin(m_globalTime), 0.0f, 0.0f));
+        program->setUniform("M", M);
+        mat.cAmbient = glm::vec4(0.1, 0, 0, 1);
+        mat.cDiffuse = glm::vec4(0, 1, 0, 1);
+        mat.cSpecular = glm::vec4(0, 0, 1, 1);
+        mat.shininess = 20.0f;
+        program->applyMaterial(mat);
+        m_sphere->draw();
 
-    // sphere 2
-    M = glm::translate(glm::vec3(0.0f, 0.0f, glm::cos(m_globalTime)));
-    m_deferredProgram->setUniform("M", M);
-    mat.cAmbient = glm::vec4(0.07, 0.07, 0, 1);
-    mat.cDiffuse = glm::vec4(1, 0, 1, 1);
-    mat.cSpecular = glm::vec4(0, 1, 1, 1);
-    mat.shininess = 100.0f;
-    m_deferredProgram->applyMaterial(mat);
-    m_sphere->draw();
+        // sphere 2
+        M = glm::translate(glm::vec3(0.0f, 0.0f, glm::cos(m_globalTime)));
+        program->setUniform("M", M);
+        mat.cAmbient = glm::vec4(0.07, 0.07, 0, 1);
+        mat.cDiffuse = glm::vec4(1, 0, 1, 1);
+        mat.cSpecular = glm::vec4(0, 1, 1, 1);
+        mat.shininess = 100.0f;
+        program->applyMaterial(mat);
+        m_sphere->draw();
 
-    // sphere 3
-    M = glm::translate(glm::vec3(0.0f, 1.5f, 0.0f));
-    m_deferredProgram->setUniform("M", M);
-    mat.cAmbient = glm::vec4(0.2, 0.2, 0.4, 1);
-    mat.cDiffuse = glm::vec4(1.3, 2, 1.2, 1);
-    mat.cSpecular = glm::vec4(2, 1, 1, 1);
-    mat.shininess = 50.0f;
-    m_deferredProgram->applyMaterial(mat);
-    m_sphere->draw();
+        // sphere 3
+        M = glm::translate(glm::vec3(0.0f, 1.5f, 0.0f));
+        program->setUniform("M", M);
+        mat.cAmbient = glm::vec4(0.2, 0.2, 0.4, 1);
+        mat.cDiffuse = glm::vec4(1.3, 2, 1.2, 1);
+        mat.cSpecular = glm::vec4(2, 1, 1, 1);
+        mat.shininess = 50.0f;
+        program->applyMaterial(mat);
+        m_sphere->draw();
 
-    // cube
-    M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(3.0f, 1.0f, 3.0f));
-    m_deferredProgram->setUniform("M", M);
-    mat.cAmbient = glm::vec4(0, 0, 0, 1);
-    mat.cDiffuse = glm::vec4(0.25, 0.25, 0.25, 1);
-    mat.cSpecular = glm::vec4(1, 0, 1, 1);
-    mat.shininess = 10.0f;
-    m_deferredProgram->applyMaterial(mat);
-    m_cube->draw();
+        // cube
+        M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(3.0f, 1.0f, 3.0f));
+        program->setUniform("M", M);
+        mat.cAmbient = glm::vec4(0, 0, 0, 1);
+        mat.cDiffuse = glm::vec4(0.25, 0.25, 0.25, 1);
+        mat.cSpecular = glm::vec4(1, 0, 1, 1);
+        mat.shininess = 10.0f;
+        program->applyMaterial(mat);
+        m_cube->draw();
+    } else if (m_world == World::WORLD_1) {
+        program->setUniform("origin", m_lightOrigin);
+        program->setUniform("time", m_lightTime);
+
+        // floor
+        M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(30.0f, 0.3f, 30.0f));
+        program->setUniform("M", M);
+        m_cube->draw();
+
+        // box
+        M = glm::translate(glm::vec3(0.0f, -0.5f, 0.0f)) * glm::scale(glm::vec3(1.5f, 2.0f, 1.5f));
+        program->setUniform("M", M);
+        m_cube->draw();
+
+        // walls
+        M = glm::translate(glm::vec3(7.0f, 2.5f, 0.0f)) * glm::scale(glm::vec3(1.0f, 7.0f, 7.0f));
+        program->setUniform("M", M);
+        m_cube->draw();
+
+        M = glm::translate(glm::vec3(0.0f, 2.5f, 7.0f)) * glm::scale(glm::vec3(7.0f, 7.0f, 1.0f));
+        program->setUniform("M", M);
+        m_cube->draw();
+    }
+}
+
+void View::worldUpdate(float dt) {
+    if (m_world == World::WORLD_DEMO) {
+        // nothing
+    } else if (m_world == World::WORLD_1) {
+        const float RING_DURATION = 5.0f;
+        if (m_lightTime == INFINITY || m_lightTime > RING_DURATION) {
+            m_lightTime = 0.0f;
+            m_lightOrigin = glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f));
+        } else {
+            m_lightTime += dt;
+        }
+    }
+
+}
+
+void View::setLights() {
+    m_lights.clear();
+    if (m_world == World::WORLD_DEMO) {
+        m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
+        m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
+    } else if (m_world == World::WORLD_1) {
+        // no lights
+    }
+}
+
+std::shared_ptr<CS123Shader> View::getWorldProgram() {
+    if (m_world == World::WORLD_DEMO || m_drawMode == DrawMode::LIGHTS) {
+        return m_deferredProgram;
+    } else {
+        return m_lightWorldProgram;
+    }
 }
 
 void View::mousePressEvent(QMouseEvent *event) {
@@ -396,6 +473,13 @@ void View::keyPressEvent(QKeyEvent *event) {
 
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
 
+    World prevWorld = m_world;
+    if (event->key() == Qt::Key_F1) m_world = World::WORLD_DEMO;
+    else if (event->key() == Qt::Key_F2) m_world = World::WORLD_1;
+    else if (event->key() == Qt::Key_F3) m_world = World::WORLD_2;
+
+    if (m_world != prevWorld) setLights();
+
 }
 
 void View::keyReleaseEvent(QKeyEvent *event) {
@@ -407,6 +491,8 @@ void View::tick() {
     float dt = m_time.restart() * 0.001f;
 
     m_globalTime += dt;
+
+    worldUpdate(dt);
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
     update();

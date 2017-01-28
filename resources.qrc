@@ -10,5 +10,6 @@
         <file alias="verticalBlur.frag">shaders/verticalBlur.frag</file>
         <file alias="texture.frag">shaders/texture.frag</file>
         <file alias="bloom.frag">shaders/bloom.frag</file>
+        <file alias="lightWorld.frag">shaders/lightWorld.frag</file>
     </qresource>
 </RCC>
