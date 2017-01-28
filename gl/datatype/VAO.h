@@ -5,8 +5,6 @@
 
 #include "GL/glew.h"
 
-namespace CS123 { namespace GL {
-
 class VBO;
 class IBO;
 
@@ -38,7 +36,5 @@ private:
     GLenum m_triangleLayout;
 //    VBO::GEOMETRY_LAYOUT m_triangleLayout;
 };
-
-}}
 
 #endif // VAO_H

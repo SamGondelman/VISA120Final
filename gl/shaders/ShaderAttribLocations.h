@@ -11,7 +11,7 @@
  * All shaders (CS123's default and any of your custom ones) must specify the layout locations
  * to match the layout locations in that file.
  */
-namespace CS123 { namespace GL { namespace ShaderAttrib {
+namespace ShaderAttrib {
 
     // Standard attributes
     const GLuint POSITION = 0;
@@ -28,8 +28,6 @@ namespace CS123 { namespace GL { namespace ShaderAttrib {
     // Starting at this index,
     const GLuint SPECIAL0 = 9;
 
-
-
-}}}
+}
 
 #endif // SHADERATTRIBLOCATIONS_H

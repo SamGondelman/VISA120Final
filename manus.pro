@@ -29,7 +29,9 @@ SOURCES += \
     gl/shaders/Shader.cpp \
     gl/shaders/CS123Shader.cpp \
     lib/ResourceLoader.cpp \
+    ta_shapes/FullScreenQuad.cpp \
     ta_shapes/SphereMesh.cpp \
+    ta_shapes/CubeMesh.cpp \
     ta_shapes/ParameterizedMesh.tpp \
     ta_shapes/ParameterizedMesh.cpp \
     ta_shapes/Mesh.cpp \
@@ -57,7 +59,9 @@ HEADERS += \
     gl/shaders/CS123Shader.h \
     lib/ResourceLoader.h \
     lib/CS123SceneData.h \
+    ta_shapes/FullScreenQuad.h \
     ta_shapes/SphereMesh.h \
+    ta_shapes/CubeMesh.h \
     ta_shapes/ParameterizedMesh.h \
     ta_shapes/Mesh.h \
     ui/view.h \
@@ -74,9 +78,15 @@ DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL
 DEFINES += GLM_SWIZZLE GLM_FORCE_RADIANS
 OTHER_FILES += \
-    shaders/shader.frag \
     shaders/shader.vert \
-    shaders/fullscreenQuad.frag \
+    shaders/shader.frag \
+    shaders/lighting.vert \
+    shaders/lighting.frag \
+    shaders/bright.frag \
+    shaders/horizontalBlur.frag \
+    shaders/verticalBlur.frag \
+    shaders/texture.frag \
+    shaders/bloom.frag \
     shaders/fullscreenQuad.vert
 
 QMAKE_CXXFLAGS_RELEASE -= -O2

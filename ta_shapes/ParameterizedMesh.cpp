@@ -5,8 +5,6 @@
 #include "gl/datatype/VBOAttribMarker.h"
 #include "gl/shaders/ShaderAttribLocations.h"
 
-using namespace CS123::GL;
-
 ParameterizedMesh::~ParameterizedMesh()
 {
 }
@@ -24,7 +22,7 @@ void ParameterizedMesh::buildVAO() {
     markers.push_back(VBOAttribMarker(ShaderAttrib::NORMAL, 3, 3*sizeof(float)));
     markers.push_back(VBOAttribMarker(ShaderAttrib::TEXCOORD0, 2, (3+3)*sizeof(float)));
 
-    CS123::GL::VBO vbo = VBO(&vertexData[0], numberOfFloats, markers);
+    VBO vbo = VBO(&vertexData[0], numberOfFloats, markers);
     m_VAO = std::make_unique<VAO>(vbo, numVertices);
 
 }

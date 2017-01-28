@@ -66,14 +66,26 @@ struct CS123SceneLightData {
    float width, height; // Only applicable to area lights
 };
 
-struct PointLight {
-    PointLight(glm::vec3 position, glm::vec3 color, glm::vec3 function) :
-        pos(position), col(color), func(function), radius(calculateRadius()) {}
+struct Light {
+    Light(glm::vec3 position, glm::vec3 color, glm::vec3 function) :
+        type(LightType::LIGHT_POINT), pos(position), func(function), col(color) {
+        radius = calculateRadius();
+    }
 
+    Light(glm::vec3 direction, glm::vec3 color) :
+        type(LightType::LIGHT_DIRECTIONAL), dir(glm::normalize(direction)), col(color) {}
+
+    LightType type;
+
+    // Point lights
     glm::vec3 pos;
-    glm::vec3 col;
     glm::vec3 func;     // constant, linear, quadratic
     float radius;
+
+    // Directional lights
+    glm::vec3 dir;
+
+    glm::vec3 col;
 
     // Based on: https://learnopengl.com/#!Advanced-Lighting/Deferred-Shading
     float calculateRadius() {

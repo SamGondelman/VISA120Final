@@ -3,8 +3,6 @@
 #include "VBO.h"
 #include "IBO.h"
 
-namespace CS123 { namespace GL {
-
 VAO::VAO(const VBO &vbo, int numberOfVerticesToRender) :
     m_drawMethod(DRAW_ARRAYS),
     m_handle(0),
@@ -120,5 +118,3 @@ void VAO::unbind() {
     glBindVertexArray(0);
     // end ta code
 }
-
-}}

@@ -8,11 +8,7 @@
 
 #include "glm/glm.hpp"
 
-namespace CS123 { namespace GL {
-
 class VAO;
-
-}}
 
 class ParameterizedMesh : public Mesh {
 public:
@@ -61,7 +57,7 @@ private:
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> texcoords;
     std::vector<Triangle> triangles;
-    std::unique_ptr<CS123::GL::VAO> m_VAO;
+    std::unique_ptr<VAO> m_VAO;
 };
 
 #include "ParameterizedMesh.tpp"

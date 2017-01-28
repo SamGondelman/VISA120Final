@@ -2,7 +2,13 @@
     <qresource prefix="/shaders">
         <file alias="shader.frag">shaders/shader.frag</file>
         <file alias="shader.vert">shaders/shader.vert</file>
-        <file alias="fullscreenQuad.frag">shaders/fullscreenQuad.frag</file>
         <file alias="fullscreenQuad.vert">shaders/fullscreenQuad.vert</file>
+        <file alias="lighting.frag">shaders/lighting.frag</file>
+        <file alias="lighting.vert">shaders/lighting.vert</file>
+        <file alias="bright.frag">shaders/bright.frag</file>
+        <file alias="horizontalBlur.frag">shaders/horizontalBlur.frag</file>
+        <file alias="verticalBlur.frag">shaders/verticalBlur.frag</file>
+        <file alias="texture.frag">shaders/texture.frag</file>
+        <file alias="bloom.frag">shaders/bloom.frag</file>
     </qresource>
 </RCC>

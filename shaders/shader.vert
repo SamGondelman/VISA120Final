@@ -1,4 +1,4 @@
-#version 330 core
+#version 400 core
 
 layout(location = 0) in vec3 position; // Position of the vertex
 layout(location = 1) in vec3 normal;   // Normal of the vertex
@@ -25,10 +25,10 @@ uniform mat4 M;
 //uniform bool useArrowOffsets; // True if rendering the arrowhead of a normal for Shapes
 
 void main() {
-    pos = P * V * M * vec4(position, 1.0);
-    nor = normal;
+    pos = V * M * vec4(position, 1.0);
+    nor = normalize(mat3(transpose(inverse(V * M))) * normal);
     texc = texCoord;
-    gl_Position = pos;
+    gl_Position = P * pos;
 
 //    vec4 position_cameraSpace = v * m * vec4(position, 1.0);
 //    vec4 normal_cameraSpace = vec4(normalize(mat3(transpose(inverse(v * m))) * normal), 0);
