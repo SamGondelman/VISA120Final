@@ -38,7 +38,7 @@ vec3 calculateInitialVelocity(int index) {
     const float MAX_VEL = 0.3;
     float velMag = MAX_VEL * hash(index * 98723.345);
     float sinPhi = sin(phi);
-    return velMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(theta));
+    return velMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi));
 }
 
 vec4 initPosition(int index) {
@@ -47,7 +47,7 @@ vec4 initPosition(int index) {
 }
 
 vec4 initVelocity(int index) {
-    return vec4(calculateInitialVelocity(index), 0);
+    return vec4(calculateInitialVelocity(index), -calculateLifetime(index));
 }
 
 vec4 updatePosition(int index) {

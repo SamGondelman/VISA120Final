@@ -54,6 +54,7 @@ private:
 
     std::unique_ptr<Player> m_player;
     std::shared_ptr<ParticleSystem> m_lightParticles;
+    void drawCube();
 
     // Light World
     glm::vec3 m_lightOrigin;

@@ -3,6 +3,7 @@
 #include <gl/datatype/FBO.h>
 #include "gl/shaders/CS123Shader.h"
 #include "ResourceLoader.h"
+#include "view.h"
 
 ParticleSystem::ParticleSystem(int numParticles, std::string drawFrag, std::string drawVert,
                                std::string updateFrag, std::string updateVert, int numColorAttachments) :
@@ -23,16 +24,9 @@ ParticleSystem::ParticleSystem(int numParticles, std::string drawFrag, std::stri
     m_FBO2 = std::make_shared<FBO>(numColorAttachments, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_numParticles, 1,
                                    TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                    TextureParameters::FILTER_METHOD::NEAREST, GL_FLOAT);
-
-    glGenVertexArrays(1, &m_emptyVAO);
 }
 
-ParticleSystem::~ParticleSystem() {
-    glDeleteVertexArrays(1, &m_emptyVAO);
-}
-
-void ParticleSystem::updateAndDraw(float dt, int width, int height, glm::mat4& V, glm::mat4& P,
-                                   std::shared_ptr<FBO> deferredBuffer) {
+void ParticleSystem::update(float dt) {
     auto prevFBO = m_evenPass ? m_FBO1 : m_FBO2;
     auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
     float firstPass = m_firstPass ? 1.0f : 0.0f;
@@ -48,16 +42,18 @@ void ParticleSystem::updateAndDraw(float dt, int width, int height, glm::mat4& V
     m_updateProgram->setTexture("prevVel", prevFBO->getColorAttachment(1));
 
     // Draw fullscreen quad
-    glBindVertexArray(m_emptyVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glBindVertexArray(0);
 
     nextFBO->unbind();
     m_updateProgram->unbind();
+}
 
-    // Draw particles to deferred buffer
+void ParticleSystem::render(int width, int height, glm::mat4& V, glm::mat4& P,
+                            void(View::*drawFunc)(), View* view) {
+    auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
+
+    // Draw particles
     m_drawProgram->bind();
-    deferredBuffer->bind();
     glViewport(0, 0, width, height);
 
     // Setup draw uniforms
@@ -67,10 +63,11 @@ void ParticleSystem::updateAndDraw(float dt, int width, int height, glm::mat4& V
     m_drawProgram->setUniform("V", V);
     m_drawProgram->setUniform("P", P);
 
-    // Draw one triangle per particle
-    glBindVertexArray(m_emptyVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 3 * m_numParticles);
-    glBindVertexArray(0);
+    // drawFunc is in charge of drawing particle vertices
+    for (int i = 0; i < m_numParticles; i++) {
+        m_drawProgram->setUniform("particleID", i);
+        (view->*drawFunc)();
+    }
 
     m_firstPass = false;
     m_evenPass = !m_evenPass;

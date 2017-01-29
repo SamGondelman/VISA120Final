@@ -138,7 +138,6 @@ void View::paintGL() {
         }
     }
 
-    m_deferredBuffer->unbind();
     worldProgram->unbind();
 
     // Drawing to screen
@@ -416,7 +415,20 @@ void View::drawGeometry(std::shared_ptr<CS123Shader> program, std::shared_ptr<FB
         program->setUniform("M", M);
         m_cube->draw();
     }
-    m_lightParticles->updateAndDraw(0, m_width, m_height, V, P, deferredBuffer);
+
+    // Bind the fullscreen VAO to update entire particle texture
+    glBindVertexArray(m_fullscreenQuadVAO);
+    m_lightParticles->update(0);
+    glBindVertexArray(0);
+
+    // Bind the deferred buffer to draw the particles
+    deferredBuffer->bind();
+    m_lightParticles->render(m_width, m_height, V, P, &drawCube, this);
+    deferredBuffer->unbind();
+}
+
+void View::drawCube() {
+    m_cube->draw();
 }
 
 void View::worldUpdate(float dt) {
