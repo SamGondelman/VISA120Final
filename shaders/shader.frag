@@ -2,7 +2,6 @@
 
 in vec4 pos;
 in vec3 nor;
-in vec2 texc;
 
 // Material data
 uniform vec3 ambient_color;

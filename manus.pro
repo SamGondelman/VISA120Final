@@ -14,6 +14,7 @@ win32 {
 }
 
 SOURCES += \
+    camera/Player.cpp \
     gl/GLDebug.cpp \
     gl/datatype/VBOAttribMarker.cpp \
     gl/datatype/VBO.cpp \
@@ -29,6 +30,7 @@ SOURCES += \
     gl/shaders/Shader.cpp \
     gl/shaders/CS123Shader.cpp \
     lib/ResourceLoader.cpp \
+    particles/ParticleSystem.cpp \
     ta_shapes/FullScreenQuad.cpp \
     ta_shapes/SphereMesh.cpp \
     ta_shapes/CubeMesh.cpp \
@@ -42,6 +44,7 @@ SOURCES += \
     main.cpp
 
 HEADERS += \
+    camera/Player.h \
     gl/GLDebug.h \
     gl/datatype/VBOAttribMarker.h \
     gl/datatype/VBO.h \
@@ -59,6 +62,7 @@ HEADERS += \
     gl/shaders/CS123Shader.h \
     lib/ResourceLoader.h \
     lib/CS123SceneData.h \
+    particles/ParticleSystem.h \
     ta_shapes/FullScreenQuad.h \
     ta_shapes/SphereMesh.h \
     ta_shapes/CubeMesh.h \
@@ -71,8 +75,8 @@ HEADERS += \
     glew-1.10.0/include/GL/glew.h
 
 FORMS += ui/mainwindow.ui
-INCLUDEPATH += glm lib ta_shapes ui glew-1.10.0/include
-DEPENDPATH += glm lib ta_shapes ui glew-1.10.0/include
+INCLUDEPATH += camera glm lib particles ta_shapes ui glew-1.10.0/include
+DEPENDPATH += camera glm lib particles ta_shapes ui glew-1.10.0/include
 
 DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL
@@ -81,6 +85,7 @@ OTHER_FILES += \
     shaders/shader.vert \
     shaders/shader.frag \
     shaders/lightWorld.frag \
+    shaders/waterWorld.frag \
     shaders/lighting.vert \
     shaders/lighting.frag \
     shaders/bright.frag \
@@ -88,7 +93,10 @@ OTHER_FILES += \
     shaders/verticalBlur.frag \
     shaders/texture.frag \
     shaders/bloom.frag \
-    shaders/fullscreenQuad.vert
+    shaders/fullscreenQuad.vert \
+    shaders/lightParticlesDraw.vert \
+    shaders/lightParticlesDraw.frag \
+    shaders/lightParticlesUpdate.frag
 
 QMAKE_CXXFLAGS_RELEASE -= -O2
 QMAKE_CXXFLAGS_RELEASE += -O3

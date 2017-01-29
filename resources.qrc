@@ -11,5 +11,9 @@
         <file alias="texture.frag">shaders/texture.frag</file>
         <file alias="bloom.frag">shaders/bloom.frag</file>
         <file alias="lightWorld.frag">shaders/lightWorld.frag</file>
+        <file alias="waterWorld.frag">shaders/waterWorld.frag</file>
+        <file alias="lightParticlesDraw.frag">shaders/lightParticlesDraw.frag</file>
+        <file alias="lightParticlesDraw.vert">shaders/lightParticlesDraw.vert</file>
+        <file alias="lightParticlesUpdate.frag">shaders/lightParticlesUpdate.frag</file>
     </qresource>
 </RCC>

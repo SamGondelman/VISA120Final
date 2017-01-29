@@ -13,13 +13,15 @@
 #include "CubeMesh.h"
 #include "gl/datatype/VAO.h"
 #include "FullScreenQuad.h"
+#include "Player.h"
+#include "ParticleSystem.h"
 
 #include <QApplication>
 #include <QKeyEvent>
 #include <iostream>
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_1),
+    m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
     m_exposure(1.0f), m_useAdaptiveExposure(true),
     m_lightOrigin(glm::vec3(0)), m_lightTime(INFINITY)
 {
@@ -65,6 +67,10 @@ void View::initializeGL() {
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lightWorld.frag");
     m_lightWorldProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
 
+    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
+    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/waterWorld.frag");
+    m_waterWorldProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
+
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.frag");
     m_lightingProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
@@ -91,20 +97,16 @@ void View::initializeGL() {
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/bloom.frag");
     m_bloomProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
-    setLights();
+    m_player = std::make_unique<Player>(m_width, m_height);
+    m_lightParticles = std::make_shared<ParticleSystem>(5000,
+                                                        ":/shaders/lightParticlesDraw.frag",
+                                                        ":/shaders/lightParticlesDraw.vert",
+                                                        ":/shaders/lightParticlesUpdate.frag");
 
+    setWorld();
 }
 
 void View::paintGL() {
-    // Camera properties
-    float fieldOfViewY = 0.8f;                                  // Vertical field of view angle, in radians.
-    float aspectRatio = static_cast<float>(m_width) / m_height; // Aspect ratio of the window.
-    float nearClipPlane = 0.1f;                                 // Near clipping plane.
-    float farClipPlane = 100.f;                                 // Far clipping plane.
-    glm::vec3 eye = glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f));                // Camera position.
-    glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);             // Where camera is looking.
-    glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);                 // Up direction.
-
     // Draw to deferred buffer
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
@@ -115,13 +117,13 @@ void View::paintGL() {
     m_deferredBuffer->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glm::mat4 V = glm::lookAt(eye, center, up);
+    glm::mat4 V = m_player->getView();
     worldProgram->setUniform("V", V);
-    glm::mat4 P = glm::perspective(fieldOfViewY, aspectRatio, nearClipPlane, farClipPlane);
+    glm::mat4 P = m_player->getPerspective();
     worldProgram->setUniform("P", P);
 
     if (m_drawMode != DrawMode::LIGHTS) {
-        drawGeometry(worldProgram);
+        drawGeometry(worldProgram, m_deferredBuffer, V, P);
     } else {
         // Draw point lights as geometry
         for (auto& light : m_lights) {
@@ -191,7 +193,7 @@ void View::paintGL() {
             }
 
             // Draw light
-            glm::vec3 dist = light.pos - eye;
+            glm::vec3 dist = light.pos - m_player->getEye();
             if (light.type == LightType::LIGHT_POINT && glm::dot(dist, dist) > light.radius * light.radius) {
                 // Outside point light
                 m_lightingProgram->setUniform("worldSpace", 1.0f);
@@ -325,8 +327,10 @@ void View::resizeGL(int w, int h) {
     //h = static_cast<int>(h / ratio);
     glViewport(0, 0, w, h);
 
+    m_player->setAspectRatio(w, h);
+
     // Resize deferred buffer
-    m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
+    m_deferredBuffer = std::make_shared<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_FLOAT);
@@ -345,10 +349,11 @@ void View::resizeGL(int w, int h) {
                                           GL_FLOAT);
 }
 
-void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
+void View::drawGeometry(std::shared_ptr<CS123Shader> program, std::shared_ptr<FBO> deferredBuffer,
+                        glm::mat4& V, glm::mat4& P) {
     glm::mat4 M;
     CS123SceneMaterial mat;
-    if (m_world == World::WORLD_DEMO) {
+    if (m_world == World::WORLD_DEMO || m_world == World::WORLD_2) {
         // sphere 1
         M = glm::translate(glm::vec3(glm::sin(m_globalTime), 0.0f, 0.0f));
         program->setUniform("M", M);
@@ -411,16 +416,20 @@ void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
         program->setUniform("M", M);
         m_cube->draw();
     }
+    m_lightParticles->updateAndDraw(0, m_width, m_height, V, P, deferredBuffer);
 }
 
 void View::worldUpdate(float dt) {
-    if (m_world == World::WORLD_DEMO) {
-        // nothing
+    if (m_world == World::WORLD_DEMO || m_world == World::WORLD_2) {
+        m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
+        m_player->setCenter(glm::vec3(0));
+
+//        m_player->setEye(glm::vec3(0.0f, 1.0f, 6.0f));
     } else if (m_world == World::WORLD_1) {
         const float RING_DURATION = 5.0f;
         if (m_lightTime == INFINITY || m_lightTime > RING_DURATION) {
             m_lightTime = 0.0f;
-            m_lightOrigin = glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f));
+            m_lightOrigin = m_player->getEye();
         } else {
             m_lightTime += dt;
         }
@@ -428,21 +437,35 @@ void View::worldUpdate(float dt) {
 
 }
 
-void View::setLights() {
+void View::setWorld() {
+    // Set camera
+    if (m_world == World::WORLD_DEMO) {
+        // camera gets set in update
+    } else if (m_world == World::WORLD_1) {
+        m_player->setEye(glm::vec3(-4, 2, -4));
+        m_player->setCenter(glm::vec3(0));
+    }
+
+    // Set lights
     m_lights.clear();
     if (m_world == World::WORLD_DEMO) {
         m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
         m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
     } else if (m_world == World::WORLD_1) {
         // no lights
+    } else if (m_world == World::WORLD_2) {
+//        m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
+        m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
     }
 }
 
 std::shared_ptr<CS123Shader> View::getWorldProgram() {
     if (m_world == World::WORLD_DEMO || m_drawMode == DrawMode::LIGHTS) {
         return m_deferredProgram;
-    } else {
+    } else if (m_world == World::WORLD_1){
         return m_lightWorldProgram;
+    } else {
+        return m_waterWorldProgram;
     }
 }
 
@@ -478,7 +501,7 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_F2) m_world = World::WORLD_1;
     else if (event->key() == Qt::Key_F3) m_world = World::WORLD_2;
 
-    if (m_world != prevWorld) setLights();
+    if (m_world != prevWorld) setWorld();
 
 }
 

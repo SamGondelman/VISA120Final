@@ -15,7 +15,6 @@ uniform float time;
 float lineIntensity(float p) {
     const float LINE_RADIUS = 0.05;
     return 1 - min(abs(p - float(round(p))), LINE_RADIUS)/LINE_RADIUS;
-
 }
 
 vec3 lightWorld() {

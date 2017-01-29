@@ -15,6 +15,8 @@ class SphereMesh;
 class CubeMesh;
 class FullScreenQuad;
 class Light;
+class Player;
+class ParticleSystem;
 
 enum DrawMode {
     POSITION = 0,
@@ -50,6 +52,9 @@ private:
     QTimer m_timer;
     float m_globalTime;
 
+    std::unique_ptr<Player> m_player;
+    std::shared_ptr<ParticleSystem> m_lightParticles;
+
     // Light World
     glm::vec3 m_lightOrigin;
     float m_lightTime;
@@ -60,7 +65,8 @@ private:
 
     std::shared_ptr<CS123Shader> m_deferredProgram;
     std::shared_ptr<CS123Shader> m_lightWorldProgram;
-    std::unique_ptr<FBO> m_deferredBuffer;
+    std::shared_ptr<CS123Shader> m_waterWorldProgram;
+    std::shared_ptr<FBO> m_deferredBuffer;
 
     std::unique_ptr<CS123Shader> m_lightingProgram;
     std::unique_ptr<FBO> m_lightingBuffer;
@@ -89,9 +95,10 @@ private:
 
     std::vector<Light> m_lights;
 
-    void drawGeometry(std::shared_ptr<CS123Shader> program);
+    void drawGeometry(std::shared_ptr<CS123Shader> program, std::shared_ptr<FBO> deferredBuffer,
+                      glm::mat4 &V, glm::mat4 &P);
     void worldUpdate(float dt);
-    void setLights();
+    void setWorld();
     std::shared_ptr<CS123Shader> getWorldProgram();
 
     void initializeGL();
