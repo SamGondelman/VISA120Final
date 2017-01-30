@@ -9,7 +9,7 @@ public:
     CubeMesh(int squaresPerEdge, float repeatU = 1, float repeatV = 1);
     virtual ~CubeMesh() override;
 
-    virtual void draw() override;
+    virtual void draw(int num = 1) override;
 
 private:
     ParameterizedMesh m_top;

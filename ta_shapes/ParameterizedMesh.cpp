@@ -72,8 +72,8 @@ void ParameterizedMesh::insertVector3(float *data, int &index, std::vector<glm::
     data[index++] = vector.z;
 }
 
-void ParameterizedMesh::draw() {
+void ParameterizedMesh::draw(int num) {
     m_VAO->bind();
-    m_VAO->draw();
+    m_VAO->draw(num);
     m_VAO->unbind();
 }

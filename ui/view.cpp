@@ -33,6 +33,9 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 
     // The update loop is implemented using a timer
     connect(&m_timer, SIGNAL(timeout()), this, SLOT(tick()));
+
+    // Print FPS
+    connect(&m_FPStimer, SIGNAL(timeout()), this, SLOT(printFPS()));
 }
 
 View::~View()
@@ -46,6 +49,8 @@ void View::initializeGL() {
     m_time.start();
     // TODO: change to / 90
     m_timer.start(1000 / 60);
+
+    m_FPStimer.start(1000);
 
     // OpenGL setup
     glEnable(GL_DEPTH_TEST);
@@ -103,6 +108,11 @@ void View::initializeGL() {
                                                         ":/shaders/lightParticlesDraw.vert",
                                                         ":/shaders/lightParticlesUpdate.frag");
 
+    m_fireParticles = std::make_shared<ParticleSystem>(1000,
+                                                       ":/shaders/fireParticlesDraw.frag",
+                                                       ":/shaders/fireParticlesDraw.vert",
+                                                       ":/shaders/fireParticlesUpdate.frag");
+
     setWorld();
 }
 
@@ -123,7 +133,8 @@ void View::paintGL() {
     worldProgram->setUniform("P", P);
 
     if (m_drawMode != DrawMode::LIGHTS) {
-        drawGeometry(worldProgram, m_deferredBuffer, V, P);
+        drawGeometry(worldProgram);
+        drawParticles(0, V, P);
     } else {
         // Draw point lights as geometry
         for (auto& light : m_lights) {
@@ -329,7 +340,7 @@ void View::resizeGL(int w, int h) {
     m_player->setAspectRatio(w, h);
 
     // Resize deferred buffer
-    m_deferredBuffer = std::make_shared<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
+    m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_FLOAT);
@@ -348,8 +359,7 @@ void View::resizeGL(int w, int h) {
                                           GL_FLOAT);
 }
 
-void View::drawGeometry(std::shared_ptr<CS123Shader> program, std::shared_ptr<FBO> deferredBuffer,
-                        glm::mat4& V, glm::mat4& P) {
+void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
     glm::mat4 M;
     CS123SceneMaterial mat;
     if (m_world == World::WORLD_DEMO || m_world == World::WORLD_2) {
@@ -415,20 +425,40 @@ void View::drawGeometry(std::shared_ptr<CS123Shader> program, std::shared_ptr<FB
         program->setUniform("M", M);
         m_cube->draw();
     }
+}
 
+void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
-    m_lightParticles->update(0);
+    if (m_world == World::WORLD_DEMO) {
+        m_lightParticles->update(dt);
+    } else if (m_world == World::WORLD_2) {
+        m_fireParticles->update(dt);
+    }
     glBindVertexArray(0);
 
     // Bind the deferred buffer to draw the particles
-    deferredBuffer->bind();
-    m_lightParticles->render(m_width, m_height, V, P, &drawCube, this);
-    deferredBuffer->unbind();
+    m_deferredBuffer->bind();
+    glViewport(0, 0, m_width, m_height);
+    if (m_world == World::WORLD_DEMO) {
+        m_lightParticles->render(V, P, &drawCube, this);
+    } else if (m_world == World::WORLD_2) {
+        m_fireParticles->render(V, P, &drawFire, this);
+    }
+    m_deferredBuffer->unbind();
 }
 
-void View::drawCube() {
-    m_cube->draw();
+void View::drawCube(int num) {
+    m_cube->draw(num);
+}
+
+void View::drawFire(int num) {
+    glBindVertexArray(m_fullscreenQuadVAO);
+    // Top cap
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 5, num);
+    // Bottom cap
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 5, 5, num);
+    glBindVertexArray(0);
 }
 
 void View::worldUpdate(float dt) {
@@ -524,6 +554,7 @@ void View::keyReleaseEvent(QKeyEvent *event) {
 void View::tick() {
     // Get the number of seconds since the last tick (variable update rate)
     float dt = m_time.restart() * 0.001f;
+    if (dt != 0.0f) m_fps = 0.02f / dt + 0.98f * m_fps;
 
     m_globalTime += dt;
 
@@ -531,4 +562,8 @@ void View::tick() {
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
     update();
+}
+
+void View::printFPS() {
+    std::cout << m_fps << std::endl;
 }

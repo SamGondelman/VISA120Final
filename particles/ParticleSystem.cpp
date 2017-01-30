@@ -48,13 +48,11 @@ void ParticleSystem::update(float dt) {
     m_updateProgram->unbind();
 }
 
-void ParticleSystem::render(int width, int height, glm::mat4& V, glm::mat4& P,
-                            void(View::*drawFunc)(), View* view) {
+void ParticleSystem::render(glm::mat4& V, glm::mat4& P, void(View::*drawFunc)(int), View* view) {
     auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
 
     // Draw particles
     m_drawProgram->bind();
-    glViewport(0, 0, width, height);
 
     // Setup draw uniforms
     m_drawProgram->setTexture("pos", nextFBO->getColorAttachment(0));
@@ -64,10 +62,7 @@ void ParticleSystem::render(int width, int height, glm::mat4& V, glm::mat4& P,
     m_drawProgram->setUniform("P", P);
 
     // drawFunc is in charge of drawing particle vertices
-    for (int i = 0; i < m_numParticles; i++) {
-        m_drawProgram->setUniform("particleID", i);
-        (view->*drawFunc)();
-    }
+    (view->*drawFunc)(m_numParticles);
 
     m_firstPass = false;
     m_evenPass = !m_evenPass;

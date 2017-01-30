@@ -21,8 +21,7 @@ public:
     enum DRAW_METHOD { DRAW_ARRAYS, DRAW_INDEXED };
 
     void bind();
-    void draw();
-    void draw(int count);
+    void draw(int count = 1);
     DRAW_METHOD drawMethod();
     void unbind();
 

@@ -15,5 +15,8 @@
         <file alias="lightParticlesDraw.frag">shaders/lightParticlesDraw.frag</file>
         <file alias="lightParticlesDraw.vert">shaders/lightParticlesDraw.vert</file>
         <file alias="lightParticlesUpdate.frag">shaders/lightParticlesUpdate.frag</file>
+        <file alias="fireParticlesDraw.frag">shaders/fireParticlesDraw.frag</file>
+        <file alias="fireParticlesDraw.vert">shaders/fireParticlesDraw.vert</file>
+        <file alias="fireParticlesUpdate.frag">shaders/fireParticlesUpdate.frag</file>
     </qresource>
 </RCC>

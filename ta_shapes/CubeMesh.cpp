@@ -68,13 +68,13 @@ CubeMesh::CubeMesh(int squaresPerEdge, float repeatU, float repeatV) :
     m_repeatV = repeatV;
 }
 
-void CubeMesh::draw() {
-    m_top.draw();
-    m_bottom.draw();
-    m_left.draw();
-    m_right.draw();
-    m_front.draw();
-    m_back.draw();
+void CubeMesh::draw(int num) {
+    m_top.draw(num);
+    m_bottom.draw(num);
+    m_left.draw(num);
+    m_right.draw(num);
+    m_front.draw(num);
+    m_back.draw(num);
 }
 
 CubeMesh::~CubeMesh()

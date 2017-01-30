@@ -23,7 +23,7 @@ public:
     Mesh();
     virtual ~Mesh();
 
-    virtual void draw() = 0;
+    virtual void draw(int num = 1) = 0;
 
 protected:
 

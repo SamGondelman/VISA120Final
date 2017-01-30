@@ -48,13 +48,18 @@ private:
     int m_width;
     int m_height;
 
+    QTimer m_FPStimer;
+    float m_fps;
     QTime m_time;
     QTimer m_timer;
     float m_globalTime;
 
     std::unique_ptr<Player> m_player;
     std::shared_ptr<ParticleSystem> m_lightParticles;
-    void drawCube();
+    void drawCube(int num);
+
+    std::shared_ptr<ParticleSystem> m_fireParticles;
+    void drawFire(int num);
 
     // Light World
     glm::vec3 m_lightOrigin;
@@ -67,7 +72,7 @@ private:
     std::shared_ptr<CS123Shader> m_deferredProgram;
     std::shared_ptr<CS123Shader> m_lightWorldProgram;
     std::shared_ptr<CS123Shader> m_waterWorldProgram;
-    std::shared_ptr<FBO> m_deferredBuffer;
+    std::unique_ptr<FBO> m_deferredBuffer;
 
     std::unique_ptr<CS123Shader> m_lightingProgram;
     std::unique_ptr<FBO> m_lightingBuffer;
@@ -96,8 +101,8 @@ private:
 
     std::vector<Light> m_lights;
 
-    void drawGeometry(std::shared_ptr<CS123Shader> program, std::shared_ptr<FBO> deferredBuffer,
-                      glm::mat4 &V, glm::mat4 &P);
+    void drawGeometry(std::shared_ptr<CS123Shader> program);
+    void drawParticles(float dt, glm::mat4& V, glm::mat4& P);
     void worldUpdate(float dt);
     void setWorld();
     std::shared_ptr<CS123Shader> getWorldProgram();
@@ -115,6 +120,7 @@ private:
 
 private slots:
     void tick();
+    void printFPS();
 };
 
 #endif // VIEW_H

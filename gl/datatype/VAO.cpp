@@ -81,26 +81,17 @@ VAO::~VAO()
     // end ta code
 }
 
-
-
-void VAO::draw() {
-    draw(m_numVertices);
-}
-
 void VAO::draw(int count) {
     switch(m_drawMethod) {
         case VAO::DRAW_ARRAYS:
-            // TODO [Task 5]
-            // begin ta code
-            glDrawArrays(m_triangleLayout, 0, count);
-            // end ta code
+            if (count == 1) {
+                glDrawArrays(m_triangleLayout, 0, m_numVertices);
+            } else {
+                glDrawArraysInstanced(m_triangleLayout, 0, m_numVertices, count);
+            }
             break;
         case VAO::DRAW_INDEXED:
-            // TODO [OPTIONAL]
-            // If you want to use IBO's, you'll need to call glDrawElements here
-            // begin ta code
-            glDrawElements(m_triangleLayout, count, GL_UNSIGNED_INT, 0);
-            // end ta code
+            glDrawElements(m_triangleLayout, m_numVertices, GL_UNSIGNED_INT, 0);
             break;
     }
 }

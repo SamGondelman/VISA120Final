@@ -40,7 +40,7 @@ public:
                       bool doubleTriangles = true);
     virtual ~ParameterizedMesh();
 
-    virtual void draw() override;
+    virtual void draw(int num = 1) override;
     void drawNormals(void (*drawNormal)(const glm::vec4 &, const glm::vec4 &));
 
 private:

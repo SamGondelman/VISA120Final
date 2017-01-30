@@ -96,7 +96,10 @@ OTHER_FILES += \
     shaders/fullscreenQuad.vert \
     shaders/lightParticlesDraw.vert \
     shaders/lightParticlesDraw.frag \
-    shaders/lightParticlesUpdate.frag
+    shaders/lightParticlesUpdate.frag \
+    shaders/fireParticlesDraw.vert \
+    shaders/fireParticlesDraw.frag \
+    shaders/fireParticlesUpdate.frag
 
 QMAKE_CXXFLAGS_RELEASE -= -O2
 QMAKE_CXXFLAGS_RELEASE += -O3

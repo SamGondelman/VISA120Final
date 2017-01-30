@@ -18,8 +18,7 @@ public:
                    int numColorAttachments = 2);
 
     void update(float dt);
-    void render(int width, int height, glm::mat4 &V, glm::mat4 &P,
-                void(View::*drawFunc)(), View *view);
+    void render(glm::mat4 &V, glm::mat4 &P, void(View::*drawFunc)(int), View *view);
 
 private:
     std::unique_ptr<CS123Shader> m_updateProgram;
