@@ -9,6 +9,7 @@
 #include "CS123SceneData.h"
 #include "gl/datatype/FBO.h"
 #include "gl/textures/Texture2D.h"
+#include "gl/textures/TextureParametersBuilder.h"
 #include "SphereMesh.h"
 #include "CubeMesh.h"
 #include "gl/datatype/VAO.h"
@@ -84,6 +85,10 @@ void View::initializeGL() {
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/bright.frag");
     m_brightProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
+    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
+    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/distortion.frag");
+    m_distortionProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
+
     glGenVertexArrays(1, &m_fullscreenQuadVAO);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
@@ -103,6 +108,17 @@ void View::initializeGL() {
     m_bloomProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
     m_player = std::make_unique<Player>(m_width, m_height);
+    QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
+    m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
+                                              shieldMapImage.width(),
+                                              shieldMapImage.height());
+    // TODO: move these into Texture2D
+    TextureParametersBuilder builder;
+    builder.setFilter(TextureParameters::FILTER_METHOD::LINEAR);
+    builder.setWrap(TextureParameters::WRAP_METHOD::REPEAT);
+    TextureParameters parameters = builder.build();
+    parameters.applyTo(*m_shieldMap);
+
     m_lightParticles = std::make_shared<ParticleSystem>(5000,
                                                         ":/shaders/lightParticlesDraw.frag",
                                                         ":/shaders/lightParticlesDraw.vert",
@@ -119,7 +135,6 @@ void View::initializeGL() {
 void View::paintGL() {
     // Draw to deferred buffer
     glDisable(GL_BLEND);
-    glEnable(GL_DEPTH_TEST);
 
     auto worldProgram = getWorldProgram();
 
@@ -168,8 +183,7 @@ void View::paintGL() {
         glBlendFunc(GL_ONE, GL_ONE);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        bool useLighting = m_drawMode == DrawMode::DEFAULT || m_drawMode == DrawMode::NO_HDR ||
-                m_drawMode == DrawMode::BRIGHT || m_drawMode == DrawMode::BRIGHT_BLUR;
+        bool useLighting = m_drawMode > DrawMode::LIGHTS;
 
         // Ambient term
         if (m_drawMode != DrawMode::DIFFUSE && m_drawMode != DrawMode::SPECULAR) {
@@ -230,13 +244,34 @@ void View::paintGL() {
             glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         } else {
+            // Render distortion objects
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_lightingBuffer->getId());
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_deferredBuffer->getId());
+            glReadBuffer(GL_COLOR_ATTACHMENT0);
+            glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+            if (m_drawMode != DrawMode::NO_DISTORTION) {
+                glDisable(GL_BLEND);
+                m_distortionProgram->bind();
+                m_deferredBuffer->bind();
+
+                m_distortionProgram->setTexture("color", m_lightingBuffer->getColorAttachment(0));
+                m_distortionProgram->setUniform("screenSize", glm::vec2(m_width, m_height));
+                m_distortionProgram->setUniform("V", V);
+                m_distortionProgram->setUniform("P", P);
+                drawDistortionObjects();
+
+                m_deferredBuffer->unbind();
+                m_distortionProgram->unbind();
+            }
+
             // HDR/bloom
             // Extract bright areas
             m_brightProgram->bind();
             m_vblurBuffer->bind();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            m_brightProgram->setTexture("color", m_lightingBuffer->getColorAttachment(0));
+            m_brightProgram->setTexture("color", m_deferredBuffer->getColorAttachment(0));
 
             glBindVertexArray(m_fullscreenQuadVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -296,12 +331,12 @@ void View::paintGL() {
                 } else {
                     // Calculate adaptive exposure
                     if (m_useAdaptiveExposure) {
-                        m_lightingBuffer->getColorAttachment(0).bind();
+                        m_deferredBuffer->getColorAttachment(0).bind();
                         glGenerateMipmap(GL_TEXTURE_2D);
                         int highestMipMapLevel = std::floor(std::log2(std::max(m_width, m_height)));
                         float averageLuminance;
                         glGetTexImage(GL_TEXTURE_2D, highestMipMapLevel, GL_RGBA, GL_FLOAT, &averageLuminance);
-                        m_lightingBuffer->getColorAttachment(0).unbind();
+                        m_deferredBuffer->getColorAttachment(0).unbind();
 
                         float averageLuminanceClamped = std::fmaxf(0.2f, std::fminf(averageLuminance, 0.8f));
                         float exposureAdjustmentRate = 0.1f;
@@ -314,7 +349,7 @@ void View::paintGL() {
                     m_bloomProgram->bind();
                     glViewport(0, 0, m_width, m_height);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                    m_bloomProgram->setTexture("color", m_lightingBuffer->getColorAttachment(0));
+                    m_bloomProgram->setTexture("color", m_deferredBuffer->getColorAttachment(0));
                     m_bloomProgram->setTexture("bloom", m_vblurBuffer->getColorAttachment(0));
                     m_bloomProgram->setUniform("exposure", m_exposure);
 
@@ -332,23 +367,26 @@ void View::paintGL() {
 void View::resizeGL(int w, int h) {
     m_width = w;
     m_height = h;
-    float ratio = static_cast<QGuiApplication *>(QCoreApplication::instance())->devicePixelRatio();
+//    float ratio = static_cast<QGuiApplication *>(QCoreApplication::instance())->devicePixelRatio();
     //w = static_cast<int>(w / ratio);
     //h = static_cast<int>(h / ratio);
     glViewport(0, 0, w, h);
 
     m_player->setAspectRatio(w, h);
 
-    // Resize deferred buffer
+    // Resize buffers
+    // contains view space positions/normals and ambient/diffuse/specular colors
     m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_FLOAT);
+    // collects lighting, contains whole scene minus distortion objects
     m_lightingBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w, h,
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_FLOAT);
 
+    // half-sized buffers for collecting/blurring bright areas
     m_vblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
                                           TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                           TextureParameters::FILTER_METHOD::LINEAR,
@@ -427,6 +465,14 @@ void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
     }
 }
 
+void View::drawDistortionObjects() {
+    m_distortionProgram->setTexture("normalMap", *m_shieldMap);
+    // box
+    glm::mat4 M = glm::translate(glm::vec3(0.0f, 0.0f, 1.5f)) * glm::scale(glm::vec3(1.5f, 1.5f, 0.05f));
+    m_distortionProgram->setUniform("M", M);
+    m_cube->draw();
+}
+
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
@@ -464,9 +510,8 @@ void View::drawFire(int num) {
 void View::worldUpdate(float dt) {
     if (m_world == World::WORLD_DEMO || m_world == World::WORLD_2) {
         m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
-        m_player->setCenter(glm::vec3(0));
-
 //        m_player->setEye(glm::vec3(0.0f, 1.0f, 6.0f));
+        m_player->setCenter(glm::vec3(0));
     } else if (m_world == World::WORLD_1) {
         const float RING_DURATION = 5.0f;
         if (m_lightTime == INFINITY || m_lightTime > RING_DURATION) {
@@ -535,6 +580,7 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_7) m_drawMode = DrawMode::SPECULAR;
     else if (event->key() == Qt::Key_8) m_drawMode = DrawMode::NO_HDR;
     else if (event->key() == Qt::Key_9) m_drawMode = m_drawMode == DrawMode::BRIGHT ? DrawMode::BRIGHT_BLUR : DrawMode::BRIGHT;
+    else if (event->key() == Qt::Key_0) m_drawMode = DrawMode::NO_DISTORTION;
 
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
 

@@ -82,24 +82,8 @@ DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL
 DEFINES += GLM_SWIZZLE GLM_FORCE_RADIANS
 OTHER_FILES += \
-    shaders/shader.vert \
-    shaders/shader.frag \
-    shaders/lightWorld.frag \
-    shaders/waterWorld.frag \
-    shaders/lighting.vert \
-    shaders/lighting.frag \
-    shaders/bright.frag \
-    shaders/horizontalBlur.frag \
-    shaders/verticalBlur.frag \
-    shaders/texture.frag \
-    shaders/bloom.frag \
-    shaders/fullscreenQuad.vert \
-    shaders/lightParticlesDraw.vert \
-    shaders/lightParticlesDraw.frag \
-    shaders/lightParticlesUpdate.frag \
-    shaders/fireParticlesDraw.vert \
-    shaders/fireParticlesDraw.frag \
-    shaders/fireParticlesUpdate.frag
+    images/*
+    shaders/*
 
 QMAKE_CXXFLAGS_RELEASE -= -O2
 QMAKE_CXXFLAGS_RELEASE += -O3

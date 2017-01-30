@@ -18,5 +18,9 @@
         <file alias="fireParticlesDraw.frag">shaders/fireParticlesDraw.frag</file>
         <file alias="fireParticlesDraw.vert">shaders/fireParticlesDraw.vert</file>
         <file alias="fireParticlesUpdate.frag">shaders/fireParticlesUpdate.frag</file>
+        <file alias="distortion.frag">shaders/distortion.frag</file>
+    </qresource>
+    <qresource prefix="/images">
+        <file alias="shieldNormalMap.png">images/shieldNormalMap.png</file>
     </qresource>
 </RCC>

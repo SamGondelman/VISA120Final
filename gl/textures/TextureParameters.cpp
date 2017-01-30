@@ -14,15 +14,10 @@ void TextureParameters::applyTo(const Texture2D &texture) {
     texture.bind();
     GLenum filterEnum = (GLenum)m_filterMethod;
     GLenum wrapEnum = (GLenum)m_wrapMethod;
-    // TODO [Task 2] call glTexParameteri to set:
-    // - the min and mag filters to filterEnum
-    // - the s wrap and t wrap to wrapEnum
-    // begin ta code
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filterEnum);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filterEnum);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapEnum);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapEnum);
-    // end ta code
 
     texture.unbind();
 }

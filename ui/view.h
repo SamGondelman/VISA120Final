@@ -17,6 +17,7 @@ class FullScreenQuad;
 class Light;
 class Player;
 class ParticleSystem;
+class Texture2D;
 
 enum DrawMode {
     POSITION = 0,
@@ -28,6 +29,7 @@ enum DrawMode {
     NO_HDR,
     BRIGHT,
     BRIGHT_BLUR,
+    NO_DISTORTION,
     DEFAULT
 };
 
@@ -55,9 +57,9 @@ private:
     float m_globalTime;
 
     std::unique_ptr<Player> m_player;
+    std::unique_ptr<Texture2D> m_shieldMap;
     std::shared_ptr<ParticleSystem> m_lightParticles;
     void drawCube(int num);
-
     std::shared_ptr<ParticleSystem> m_fireParticles;
     void drawFire(int num);
 
@@ -76,6 +78,8 @@ private:
 
     std::unique_ptr<CS123Shader> m_lightingProgram;
     std::unique_ptr<FBO> m_lightingBuffer;
+
+    std::unique_ptr<CS123Shader> m_distortionProgram;
 
     GLuint m_fullscreenQuadVAO;
     std::unique_ptr<CS123Shader> m_brightProgram;
@@ -103,6 +107,7 @@ private:
 
     void drawGeometry(std::shared_ptr<CS123Shader> program);
     void drawParticles(float dt, glm::mat4& V, glm::mat4& P);
+    void drawDistortionObjects();
     void worldUpdate(float dt);
     void setWorld();
     std::shared_ptr<CS123Shader> getWorldProgram();
