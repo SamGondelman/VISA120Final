@@ -27,23 +27,24 @@ float hash(float n) { return fract(sin(n)*753.5453123); }
 // Helper functions to procedurally generate lifetimes and initial velocities
 // based on particle index
 float calculateLifetime(int index) {
-    const float MAX_LIFETIME = 5.0;
+    const float MAX_LIFETIME = 1.5;
     const float MIN_LIFETIME = 0.5;
     return MIN_LIFETIME + (MAX_LIFETIME - MIN_LIFETIME) * hash(index * 2349.2693);
 }
 
 vec3 calculateInitialVelocity(int index) {
-    float theta = 2.0 * PI * hash(index * 872.0238);
-    float phi = PI * hash(index * 1912.124);
-    const float MAX_VEL = 0.3;
-    float velMag = MAX_VEL * hash(index * 98723.345);
-    float sinPhi = sin(phi);
-    return velMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi));
+    return vec3(2, 0, 0);
 }
 
 vec4 initPosition(int index) {
-    const vec3 spawn = vec3(1);
-    return vec4(spawn, calculateLifetime(index));
+    const vec3 spawn = vec3(-3, 0.5, 1);
+    float theta = 2.0 * PI * hash(index * 872.0238);
+    float phi = PI * hash(index * 1912.124);
+    const float MAX_OFFSET = 0.1;
+    float offsetMag = MAX_OFFSET * hash(index * 98723.345);
+    float sinPhi = sin(phi);
+    return vec4(spawn + offsetMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi)),
+                calculateLifetime(index));
 }
 
 vec4 initVelocity(int index) {
@@ -57,8 +58,7 @@ vec4 updatePosition(int index) {
 }
 
 vec4 updateVelocity(int index) {
-    const float G = -0.1;
-    return texture(prevVel, texCoord) + vec4(0, G * dt, 0, dt);
+    return texture(prevVel, texCoord) + vec4(0, 0, 0, dt);
 }
 
 void main() {

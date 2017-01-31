@@ -6,6 +6,7 @@ uniform int numParticles;
 
 out vec4 viewPos;
 out vec3 nor;
+out float ageFrac;
 
 // Transformation matrices
 uniform mat4 P;
@@ -20,9 +21,11 @@ void main() {
     vec4 velAge = texelFetch(vel, ivec2(gl_InstanceID, 0), 0);
 
     // Calculate diameter based on age and lifetime
-    float diameter = 0.05;
+    float diameter = 0.025;
     diameter *= min(min(1.0, max(0, velAge.w) / (0.1 * posTime.w)),
                     min(1.0, abs(posTime.w - max(0, velAge.w)) / (0.1 * posTime.w)));
+
+    ageFrac = max(0, velAge.w) / posTime.w;
 
     vec3 unitV = normalize(velAge.xyz);
     const float TWO_PI_THREE = 2.094395;
@@ -35,7 +38,7 @@ void main() {
         vec4(p3, 0),
         vec4(p4, 0),
         vec4(p2, 0),
-        vec4(-unitV, 0),
+        vec4(-2 * unitV, 0),
         vec4(p2, 0),
         vec4(p4, 0),
         vec4(p3, 0),

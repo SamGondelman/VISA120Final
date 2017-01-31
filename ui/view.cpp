@@ -86,6 +86,10 @@ void View::initializeGL() {
     m_brightProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
+    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/distortionStencil.frag");
+    m_distortionStencilProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
+
+    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/distortion.frag");
     m_distortionProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
@@ -130,6 +134,45 @@ void View::initializeGL() {
                                                        ":/shaders/fireParticlesUpdate.frag");
 
     setWorld();
+}
+
+void View::resizeGL(int w, int h) {
+    m_width = w;
+    m_height = h;
+//    float ratio = static_cast<QGuiApplication *>(QCoreApplication::instance())->devicePixelRatio();
+    //w = static_cast<int>(w / ratio);
+    //h = static_cast<int>(h / ratio);
+    glViewport(0, 0, w, h);
+
+    m_player->setAspectRatio(w, h);
+
+    // Resize buffers
+    // contains view space positions/normals and ambient/diffuse/specular colors
+    // reused for distortion objects to take advantage of depth buffer
+    m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
+                                             TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                             TextureParameters::FILTER_METHOD::LINEAR,
+                                             GL_FLOAT);
+    // collects lighting, contains whole scene minus distortion objects
+    m_lightingBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w, h,
+                                             TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                             TextureParameters::FILTER_METHOD::LINEAR,
+                                             GL_FLOAT);
+    // contains whole scene + distortion objects
+    m_distortionBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w, h,
+                                               TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                               TextureParameters::FILTER_METHOD::LINEAR,
+                                               GL_FLOAT);
+
+    // half-sized buffers for collecting/blurring bright areas
+    m_vblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
+                                          TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                          TextureParameters::FILTER_METHOD::LINEAR,
+                                          GL_FLOAT);
+    m_hblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
+                                          TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                          TextureParameters::FILTER_METHOD::LINEAR,
+                                          GL_FLOAT);
 }
 
 void View::paintGL() {
@@ -181,7 +224,7 @@ void View::paintGL() {
         m_lightingBuffer->bind();
         glEnable(GL_BLEND);
         glBlendFunc(GL_ONE, GL_ONE);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT);
 
         bool useLighting = m_drawMode > DrawMode::LIGHTS;
 
@@ -244,34 +287,43 @@ void View::paintGL() {
             glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         } else {
-            // Render distortion objects
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_lightingBuffer->getId());
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_deferredBuffer->getId());
-            glReadBuffer(GL_COLOR_ATTACHMENT0);
-            glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
             if (m_drawMode != DrawMode::NO_DISTORTION) {
-                glDisable(GL_BLEND);
-                m_distortionProgram->bind();
+                // Distortion objects
+                // Render distortion objects with deferred buffer depth attachment to get distortion stencil
+                m_distortionStencilProgram->bind();
                 m_deferredBuffer->bind();
-
-                m_distortionProgram->setTexture("color", m_lightingBuffer->getColorAttachment(0));
-                m_distortionProgram->setUniform("screenSize", glm::vec2(m_width, m_height));
-                m_distortionProgram->setUniform("V", V);
-                m_distortionProgram->setUniform("P", P);
+                glClear(GL_COLOR_BUFFER_BIT);
+                m_distortionStencilProgram->setUniform("V", V);
+                m_distortionStencilProgram->setUniform("P", P);
                 drawDistortionObjects();
-
                 m_deferredBuffer->unbind();
+                m_distortionStencilProgram->unbind();
+
+                // Combine distortion with lighting buffer
+                m_distortionProgram->bind();
+                m_distortionBuffer->bind();
+                glClear(GL_COLOR_BUFFER_BIT);
+                m_distortionProgram->setTexture("offsetMap", m_deferredBuffer->getColorAttachment(0));
+                m_distortionProgram->setTexture("color", m_lightingBuffer->getColorAttachment(0));
+                glBindVertexArray(m_fullscreenQuadVAO);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                glBindVertexArray(0);
+                m_distortionBuffer->unbind();
                 m_distortionProgram->unbind();
+            } else {
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, m_lightingBuffer->getId());
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_distortionBuffer->getId());
+                glReadBuffer(GL_COLOR_ATTACHMENT0);
+                glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
             }
 
             // HDR/bloom
             // Extract bright areas
             m_brightProgram->bind();
             m_vblurBuffer->bind();
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glClear(GL_COLOR_BUFFER_BIT);
 
-            m_brightProgram->setTexture("color", m_deferredBuffer->getColorAttachment(0));
+            m_brightProgram->setTexture("color", m_distortionBuffer->getColorAttachment(0));
 
             glBindVertexArray(m_fullscreenQuadVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -302,7 +354,7 @@ void View::paintGL() {
 
                     program->bind();
                     to->bind();
-                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                    glClear(GL_COLOR_BUFFER_BIT);
 
                     program->setTexture("tex", from->getColorAttachment(0));
 
@@ -331,12 +383,12 @@ void View::paintGL() {
                 } else {
                     // Calculate adaptive exposure
                     if (m_useAdaptiveExposure) {
-                        m_deferredBuffer->getColorAttachment(0).bind();
+                        m_distortionBuffer->getColorAttachment(0).bind();
                         glGenerateMipmap(GL_TEXTURE_2D);
                         int highestMipMapLevel = std::floor(std::log2(std::max(m_width, m_height)));
                         float averageLuminance;
                         glGetTexImage(GL_TEXTURE_2D, highestMipMapLevel, GL_RGBA, GL_FLOAT, &averageLuminance);
-                        m_deferredBuffer->getColorAttachment(0).unbind();
+                        m_distortionBuffer->getColorAttachment(0).unbind();
 
                         float averageLuminanceClamped = std::fmaxf(0.2f, std::fminf(averageLuminance, 0.8f));
                         float exposureAdjustmentRate = 0.1f;
@@ -349,7 +401,7 @@ void View::paintGL() {
                     m_bloomProgram->bind();
                     glViewport(0, 0, m_width, m_height);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                    m_bloomProgram->setTexture("color", m_deferredBuffer->getColorAttachment(0));
+                    m_bloomProgram->setTexture("color", m_distortionBuffer->getColorAttachment(0));
                     m_bloomProgram->setTexture("bloom", m_vblurBuffer->getColorAttachment(0));
                     m_bloomProgram->setUniform("exposure", m_exposure);
 
@@ -362,39 +414,6 @@ void View::paintGL() {
             }
         }
     }
-}
-
-void View::resizeGL(int w, int h) {
-    m_width = w;
-    m_height = h;
-//    float ratio = static_cast<QGuiApplication *>(QCoreApplication::instance())->devicePixelRatio();
-    //w = static_cast<int>(w / ratio);
-    //h = static_cast<int>(h / ratio);
-    glViewport(0, 0, w, h);
-
-    m_player->setAspectRatio(w, h);
-
-    // Resize buffers
-    // contains view space positions/normals and ambient/diffuse/specular colors
-    m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
-                                             TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
-                                             TextureParameters::FILTER_METHOD::LINEAR,
-                                             GL_FLOAT);
-    // collects lighting, contains whole scene minus distortion objects
-    m_lightingBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w, h,
-                                             TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
-                                             TextureParameters::FILTER_METHOD::LINEAR,
-                                             GL_FLOAT);
-
-    // half-sized buffers for collecting/blurring bright areas
-    m_vblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
-                                          TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
-                                          TextureParameters::FILTER_METHOD::LINEAR,
-                                          GL_FLOAT);
-    m_hblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
-                                          TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
-                                          TextureParameters::FILTER_METHOD::LINEAR,
-                                          GL_FLOAT);
 }
 
 void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
@@ -466,10 +485,15 @@ void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
 }
 
 void View::drawDistortionObjects() {
-    m_distortionProgram->setTexture("normalMap", *m_shieldMap);
-    // box
+    m_distortionStencilProgram->setTexture("normalMap", *m_shieldMap);
+    // wall
     glm::mat4 M = glm::translate(glm::vec3(0.0f, 0.0f, 1.5f)) * glm::scale(glm::vec3(1.5f, 1.5f, 0.05f));
-    m_distortionProgram->setUniform("M", M);
+    m_distortionStencilProgram->setUniform("M", M);
+    m_cube->draw();
+
+    // box
+    M = glm::translate(glm::vec3(0.0f, 0.5f, 0.0f)) * glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+    m_distortionStencilProgram->setUniform("M", M);
     m_cube->draw();
 }
 
@@ -485,7 +509,6 @@ void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
 
     // Bind the deferred buffer to draw the particles
     m_deferredBuffer->bind();
-    glViewport(0, 0, m_width, m_height);
     if (m_world == World::WORLD_DEMO) {
         m_lightParticles->render(V, P, &drawCube, this);
     } else if (m_world == World::WORLD_2) {
@@ -508,9 +531,8 @@ void View::drawFire(int num) {
 }
 
 void View::worldUpdate(float dt) {
-    if (m_world == World::WORLD_DEMO || m_world == World::WORLD_2) {
+    if (m_world == World::WORLD_DEMO) {
         m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
-//        m_player->setEye(glm::vec3(0.0f, 1.0f, 6.0f));
         m_player->setCenter(glm::vec3(0));
     } else if (m_world == World::WORLD_1) {
         const float RING_DURATION = 5.0f;
@@ -520,8 +542,11 @@ void View::worldUpdate(float dt) {
         } else {
             m_lightTime += dt;
         }
+    } else if (m_world == World::WORLD_2) {
+//        m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
+        m_player->setEye(glm::vec3(0.0f, 1.5f + 0.5f * glm::sin(m_globalTime/3.0f), 6.0f));
+        m_player->setCenter(glm::vec3(0));
     }
-
 }
 
 void View::setWorld() {

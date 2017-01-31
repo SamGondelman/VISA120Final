@@ -79,7 +79,9 @@ private:
     std::unique_ptr<CS123Shader> m_lightingProgram;
     std::unique_ptr<FBO> m_lightingBuffer;
 
+    std::unique_ptr<CS123Shader> m_distortionStencilProgram;
     std::unique_ptr<CS123Shader> m_distortionProgram;
+    std::unique_ptr<FBO> m_distortionBuffer;
 
     GLuint m_fullscreenQuadVAO;
     std::unique_ptr<CS123Shader> m_brightProgram;
