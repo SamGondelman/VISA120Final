@@ -34,6 +34,7 @@ SOURCES += \
     ta_shapes/FullScreenQuad.cpp \
     ta_shapes/SphereMesh.cpp \
     ta_shapes/CubeMesh.cpp \
+    ta_shapes/ConeMesh.cpp \
     ta_shapes/ParameterizedMesh.tpp \
     ta_shapes/ParameterizedMesh.cpp \
     ta_shapes/Mesh.cpp \
@@ -66,6 +67,7 @@ HEADERS += \
     ta_shapes/FullScreenQuad.h \
     ta_shapes/SphereMesh.h \
     ta_shapes/CubeMesh.h \
+    ta_shapes/ConeMesh.h \
     ta_shapes/ParameterizedMesh.h \
     ta_shapes/Mesh.h \
     ui/view.h \

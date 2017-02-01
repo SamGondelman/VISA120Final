@@ -8,7 +8,7 @@ public:
     ConeMesh(int stacks, int slices, float repeatU = 1, float repeatV = 1);
     virtual ~ConeMesh() override;
 
-    virtual void draw() override;
+    virtual void draw(int num = 1) override;
 
 private:
     ParameterizedMesh m_body;

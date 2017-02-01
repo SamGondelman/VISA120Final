@@ -13,6 +13,7 @@ class CS123Shader;
 class FBO;
 class SphereMesh;
 class CubeMesh;
+class ConeMesh;
 class FullScreenQuad;
 class Light;
 class Player;
@@ -36,7 +37,8 @@ enum DrawMode {
 enum World {
     WORLD_DEMO = 0,
     WORLD_1,
-    WORLD_2
+    WORLD_2,
+    WORLD_3
 };
 
 class View : public QGLWidget {
@@ -67,6 +69,9 @@ private:
     glm::vec3 m_lightOrigin;
     float m_lightTime;
 
+    // Rock World
+    float m_rockTime;
+
     // OpenGL drawing stuff
     DrawMode m_drawMode;
     World m_world;
@@ -78,6 +83,8 @@ private:
 
     std::unique_ptr<CS123Shader> m_lightingProgram;
     std::unique_ptr<FBO> m_lightingBuffer;
+
+    std::unique_ptr<CS123Shader> m_rockProgram;
 
     std::unique_ptr<CS123Shader> m_distortionStencilProgram;
     std::unique_ptr<CS123Shader> m_distortionProgram;
@@ -100,6 +107,7 @@ private:
     // Shapes
     std::unique_ptr<SphereMesh> m_sphere;
     std::unique_ptr<CubeMesh> m_cube;
+    std::unique_ptr<ConeMesh> m_cone;
 
     // Lights
     std::unique_ptr<SphereMesh> m_lightSphere;
@@ -109,6 +117,7 @@ private:
 
     void drawGeometry(std::shared_ptr<CS123Shader> program);
     void drawParticles(float dt, glm::mat4& V, glm::mat4& P);
+    void drawRocks(glm::mat4& V, glm::mat4& P);
     void drawDistortionObjects();
     void worldUpdate(float dt);
     void setWorld();

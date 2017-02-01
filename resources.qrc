@@ -20,6 +20,7 @@
         <file alias="fireParticlesUpdate.frag">shaders/fireParticlesUpdate.frag</file>
         <file alias="distortion.frag">shaders/distortion.frag</file>
         <file alias="distortionStencil.frag">shaders/distortionStencil.frag</file>
+        <file alias="rock.vert">shaders/rock.vert</file>
     </qresource>
     <qresource prefix="/images">
         <file alias="shieldNormalMap.png">images/shieldNormalMap.png</file>

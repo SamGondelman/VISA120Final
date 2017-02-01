@@ -12,6 +12,7 @@
 #include "gl/textures/TextureParametersBuilder.h"
 #include "SphereMesh.h"
 #include "CubeMesh.h"
+#include "ConeMesh.h"
 #include "gl/datatype/VAO.h"
 #include "FullScreenQuad.h"
 #include "Player.h"
@@ -62,6 +63,7 @@ void View::initializeGL() {
 
     m_sphere = std::make_unique<SphereMesh>(10, 10);
     m_cube = std::make_unique<CubeMesh>(1);
+    m_cone = std::make_unique<ConeMesh>(20, 20);
     m_lightSphere = std::make_unique<SphereMesh>(15, 15);
     m_fullscreenQuad = std::make_unique<FullScreenQuad>();
 
@@ -80,6 +82,10 @@ void View::initializeGL() {
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.frag");
     m_lightingProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
+
+    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/rock.vert");
+    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.frag");
+    m_rockProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/bright.frag");
@@ -193,6 +199,7 @@ void View::paintGL() {
     if (m_drawMode != DrawMode::LIGHTS) {
         drawGeometry(worldProgram);
         drawParticles(0, V, P);
+        drawRocks(V, P);
     } else {
         // Draw point lights as geometry
         for (auto& light : m_lights) {
@@ -207,6 +214,7 @@ void View::paintGL() {
         }
     }
 
+    m_deferredBuffer->unbind();
     worldProgram->unbind();
 
     // Drawing to screen
@@ -481,20 +489,17 @@ void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
         M = glm::translate(glm::vec3(0.0f, 2.5f, 7.0f)) * glm::scale(glm::vec3(7.0f, 7.0f, 1.0f));
         program->setUniform("M", M);
         m_cube->draw();
+    } else if (m_world == World::WORLD_3) {
+        // floor
+        M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(3.0f, 0.25f, 3.0f));
+        program->setUniform("M", M);
+        mat.cAmbient = 0.5f*glm::vec4(0.25, 0.25, 0.1, 1);
+        mat.cDiffuse = 0.5f*glm::vec4(0.5, 0.25, 0.3, 1);
+        mat.cSpecular = 0.5f*glm::vec4(0.5, 0.5, 1, 1);
+        mat.shininess = 10.0f;
+        program->applyMaterial(mat);
+        m_cube->draw();
     }
-}
-
-void View::drawDistortionObjects() {
-    m_distortionStencilProgram->setTexture("normalMap", *m_shieldMap);
-    // wall
-    glm::mat4 M = glm::translate(glm::vec3(0.0f, 0.0f, 1.5f)) * glm::scale(glm::vec3(1.5f, 1.5f, 0.05f));
-    m_distortionStencilProgram->setUniform("M", M);
-    m_cube->draw();
-
-    // box
-    M = glm::translate(glm::vec3(0.0f, 0.5f, 0.0f)) * glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
-    m_distortionStencilProgram->setUniform("M", M);
-    m_cube->draw();
 }
 
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
@@ -514,7 +519,6 @@ void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     } else if (m_world == World::WORLD_2) {
         m_fireParticles->render(V, P, &drawFire, this);
     }
-    m_deferredBuffer->unbind();
 }
 
 void View::drawCube(int num) {
@@ -528,6 +532,52 @@ void View::drawFire(int num) {
     // Bottom cap
     glDrawArraysInstanced(GL_TRIANGLE_FAN, 5, 5, num);
     glBindVertexArray(0);
+}
+
+void View::drawRocks(glm::mat4& V, glm::mat4& P) {
+    glDisable(GL_CULL_FACE);
+    m_rockProgram->bind();
+    m_rockProgram->setUniform("V", V);
+    m_rockProgram->setUniform("P", P);
+    m_rockProgram->setUniform("time", m_rockTime);
+
+    if (m_world == World::WORLD_3) {
+        glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
+                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
+                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+        m_rockProgram->setUniform("M", M);
+        m_rockProgram->setUniform("origin", glm::vec3(0.25, 0.0, 0.0));
+        CS123SceneMaterial mat;
+        mat.cAmbient = 0.25f*glm::vec4(0.137, 0.094, 0.118, 1);
+        mat.cDiffuse = 0.25f*glm::vec4(0.443, 0.263, 0.2, 1);
+        mat.cSpecular = 0.25f*glm::vec4(0.773, 0.561, 0.419, 1);
+        mat.shininess = 1.0f;
+        m_rockProgram->applyMaterial(mat);
+        m_cone->draw();
+
+        M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
+                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
+                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+        m_rockProgram->setUniform("M", M);
+        m_rockProgram->setUniform("origin", glm::vec3(-1.25, 0.0, 0.0));
+        m_sphere->draw();
+    }
+
+    m_rockProgram->unbind();
+    glEnable(GL_CULL_FACE);
+}
+
+void View::drawDistortionObjects() {
+    m_distortionStencilProgram->setTexture("normalMap", *m_shieldMap);
+    // wall
+    glm::mat4 M = glm::translate(glm::vec3(0.0f, 0.0f, 1.5f)) * glm::scale(glm::vec3(1.5f, 1.5f, 0.05f));
+    m_distortionStencilProgram->setUniform("M", M);
+    m_cube->draw();
+
+    // box
+    M = glm::translate(glm::vec3(0.0f, 0.5f, 0.0f)) * glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+    m_distortionStencilProgram->setUniform("M", M);
+    m_cube->draw();
 }
 
 void View::worldUpdate(float dt) {
@@ -546,6 +596,10 @@ void View::worldUpdate(float dt) {
 //        m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
         m_player->setEye(glm::vec3(0.0f, 1.5f + 0.5f * glm::sin(m_globalTime/3.0f), 6.0f));
         m_player->setCenter(glm::vec3(0));
+    } else if (m_world == World::WORLD_3) {
+        m_player->setEye(glm::vec3(0.0f, 1.5f + 0.5f * glm::sin(m_globalTime/3.0f), 6.0f));
+        m_player->setCenter(glm::vec3(0));
+        m_rockTime += dt;
     }
 }
 
@@ -565,14 +619,14 @@ void View::setWorld() {
         m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
     } else if (m_world == World::WORLD_1) {
         // no lights
-    } else if (m_world == World::WORLD_2) {
+    } else if (m_world == World::WORLD_2 || World::WORLD_3) {
 //        m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
         m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
     }
 }
 
 std::shared_ptr<CS123Shader> View::getWorldProgram() {
-    if (m_world == World::WORLD_DEMO || m_drawMode == DrawMode::LIGHTS) {
+    if (m_world == World::WORLD_DEMO || m_world == World::WORLD_3 || m_drawMode == DrawMode::LIGHTS) {
         return m_deferredProgram;
     } else if (m_world == World::WORLD_1){
         return m_lightWorldProgram;
@@ -607,14 +661,16 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_9) m_drawMode = m_drawMode == DrawMode::BRIGHT ? DrawMode::BRIGHT_BLUR : DrawMode::BRIGHT;
     else if (event->key() == Qt::Key_0) m_drawMode = DrawMode::NO_DISTORTION;
 
-    if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
-
     World prevWorld = m_world;
     if (event->key() == Qt::Key_F1) m_world = World::WORLD_DEMO;
     else if (event->key() == Qt::Key_F2) m_world = World::WORLD_1;
     else if (event->key() == Qt::Key_F3) m_world = World::WORLD_2;
+    else if (event->key() == Qt::Key_F4) m_world = World::WORLD_3;
 
     if (m_world != prevWorld) setWorld();
+
+    if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
+    if (event->key() == Qt::Key_O) m_rockTime = 0.0f;
 
 }
 

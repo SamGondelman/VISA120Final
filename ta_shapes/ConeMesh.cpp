@@ -80,8 +80,8 @@ ConeMesh::ConeMesh(int stacks, int slices, float repeatU, float repeatV) :
 
 ConeMesh::~ConeMesh() {}
 
-void ConeMesh::draw() {
-    m_body.draw();
-    m_tip.draw();
-    m_bottomCap.draw();
+void ConeMesh::draw(int num) {
+    m_body.draw(num);
+    m_tip.draw(num);
+    m_bottomCap.draw(num);
 }
