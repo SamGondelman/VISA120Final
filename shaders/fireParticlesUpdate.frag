@@ -5,6 +5,9 @@ uniform sampler2D prevPos;
 uniform sampler2D prevVel;
 uniform int numParticles;
 
+const vec3 spawn = vec3(-1, 0.75, 0);
+const vec3 dir = normalize(vec3(1, 0, 1));
+
 in vec2 texCoord;
 
 layout(location = 0) out vec4 pos;
@@ -32,12 +35,7 @@ float calculateLifetime(int index) {
     return MIN_LIFETIME + (MAX_LIFETIME - MIN_LIFETIME) * hash(index * 2349.2693);
 }
 
-vec3 calculateInitialVelocity(int index) {
-    return vec3(2, 0, 0);
-}
-
 vec4 initPosition(int index) {
-    const vec3 spawn = vec3(-3, 0.5, 1);
     float theta = 2.0 * PI * hash(index * 872.0238);
     float phi = PI * hash(index * 1912.124);
     const float MAX_OFFSET = 0.1;
@@ -48,7 +46,8 @@ vec4 initPosition(int index) {
 }
 
 vec4 initVelocity(int index) {
-    return vec4(calculateInitialVelocity(index), -calculateLifetime(index));
+    const float VEL_MAG = 3.0;
+    return vec4(VEL_MAG * dir, 0);
 }
 
 vec4 updatePosition(int index) {
@@ -58,7 +57,19 @@ vec4 updatePosition(int index) {
 }
 
 vec4 updateVelocity(int index) {
-    return texture(prevVel, texCoord) + vec4(0, 0, 0, dt);
+    vec4 pos = texture(prevPos, texCoord);
+    vec4 vel = texture(prevVel, texCoord);
+
+    vec3 a = (pos.xyz - spawn);
+    vec3 a1 = dot(a, dir) * dir;
+    float RAD_MAG = 20.0 * hash(index * 2935.0233);
+    vec3 radial = a - a1;
+
+    float tanHash = hash(index * 5234.723);
+    float TAN_MAG = 0.5 * tanHash * tanHash;
+    vec3 tangential = normalize(cross(radial, dir));
+
+    return vel + dt*vec4(-RAD_MAG*radial + TAN_MAG*tangential, 0) + vec4(0, 0, 0, dt);
 }
 
 void main() {

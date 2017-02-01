@@ -28,8 +28,9 @@ void main() {
     ageFrac = max(0, velAge.w) / posTime.w;
 
     vec3 unitV = normalize(velAge.xyz);
+    float isUP = ceil(max(0, unitV.y - 0.99));
     const float TWO_PI_THREE = 2.094395;
-    vec3 p2 = normalize(cross(unitV, vec3(0, 1, 0)));
+    vec3 p2 = normalize(cross(unitV, (1-isUP) * vec3(0, 1, 0) + isUP * vec3(1, 0, 0)));
     vec3 p3 = rotate(p2, unitV, TWO_PI_THREE);
     vec3 p4 = rotate(p2, unitV, -TWO_PI_THREE);
     vec4 OFFSETS[10] = vec4[10](
