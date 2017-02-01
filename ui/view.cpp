@@ -546,7 +546,6 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
                 glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
                 glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
         m_rockProgram->setUniform("M", M);
-        m_rockProgram->setUniform("origin", glm::vec3(0.25, 0.0, 0.0));
         CS123SceneMaterial mat;
         mat.cAmbient = 0.25f*glm::vec4(0.137, 0.094, 0.118, 1);
         mat.cDiffuse = 0.25f*glm::vec4(0.443, 0.263, 0.2, 1);
@@ -559,7 +558,6 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
                 glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
                 glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
         m_rockProgram->setUniform("M", M);
-        m_rockProgram->setUniform("origin", glm::vec3(-1.25, 0.0, 0.0));
         m_sphere->draw();
     }
 
