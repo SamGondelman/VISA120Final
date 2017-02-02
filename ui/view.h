@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "glm/glm.hpp"
-#include "World.h"
 
 class CS123Shader;
 class FBO;
@@ -20,6 +19,7 @@ class Light;
 class Player;
 class ParticleSystem;
 class Texture2D;
+class World;
 
 enum DrawMode {
     POSITION = 0,
@@ -69,7 +69,7 @@ private:
     float m_fps;
     QTimer m_FPStimer;
 
-    std::vector<World*> m_worlds;
+    std::vector<std::shared_ptr<World>> m_worlds;
 
     // Element effects
     std::shared_ptr<ParticleSystem> m_lightParticles;

@@ -18,6 +18,7 @@
 #include "Player.h"
 #include "ParticleSystem.h"
 
+#include "World.h"
 #include "DemoWorld.h"
 #include "LightWorld.h"
 #include "WaterWorld.h"
@@ -54,7 +55,6 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 
 View::~View()
 {
-    for (auto w : m_worlds) delete w;
     glDeleteVertexArrays(1, &m_fullscreenQuadVAO);
 }
 
@@ -143,11 +143,11 @@ void View::initializeGL() {
     parameters.applyTo(*m_shieldMap);
 
     // World setup
-    m_worlds.push_back(new DemoWorld());
-    m_worlds.push_back(new LightWorld());
-    m_worlds.push_back(new WaterWorld());
-    m_worlds.push_back(new RockWorld());
-    m_worlds.push_back(new PhysicsWorld());
+    m_worlds.push_back(std::make_shared<DemoWorld>());
+    m_worlds.push_back(std::make_shared<LightWorld>());
+    m_worlds.push_back(std::make_shared<WaterWorld>());
+    m_worlds.push_back(std::make_shared<RockWorld>());
+    m_worlds.push_back(std::make_shared<PhysicsWorld>());
     m_worlds[m_world]->makeCurrent();
 }
 
@@ -296,6 +296,7 @@ void View::paintGL() {
         m_lightingBuffer->unbind();
         m_lightingProgram->unbind();
         glActiveTexture(GL_TEXTURE0);
+        glDisable(GL_BLEND);
 
         if (m_drawMode == DrawMode::DIFFUSE || m_drawMode == DrawMode::SPECULAR || m_drawMode == DrawMode::NO_HDR) {
             // For debugging, draw lighting buffer before HDR/bloom

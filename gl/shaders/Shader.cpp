@@ -122,6 +122,10 @@ void Shader::setUniform(const std::string &name, const glm::mat4 &mat4) {
     glUniformMatrix4fv(m_uniforms[name], 1, GL_FALSE, glm::value_ptr(mat4));
 }
 
+void Shader::setUniformMat4(const std::string &name, GLfloat* mat) {
+    glUniformMatrix4fv(m_uniforms[name], 1, GL_FALSE, mat);
+}
+
 void Shader::setUniformArrayByIndex(const std::string &name, float f, size_t index) {
     glUniform1f(m_uniformArrays[std::make_tuple(name, index)], f);
 }

@@ -41,6 +41,7 @@ public:
     void setUniform(const std::string &name, const glm::mat2 &mat2);
     void setUniform(const std::string &name, const glm::mat3 &mat3);
     void setUniform(const std::string &name, const glm::mat4 &mat4);
+    void setUniformMat4(const std::string &name, GLfloat* mat);
 
     void setUniformArrayByIndex(const std::string &name, float f, size_t index);
     void setUniformArrayByIndex(const std::string &name, const glm::vec2 &vec2, size_t index);

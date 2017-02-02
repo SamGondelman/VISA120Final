@@ -4,6 +4,10 @@
 #include <vector>
 #include <memory>
 
+#include <btBulletCollisionCommon.h>
+#include <BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h>
+#include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
+
 #include "CS123SceneData.h"
 
 class CS123Shader;
