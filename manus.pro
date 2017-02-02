@@ -31,18 +31,24 @@ SOURCES += \
     gl/shaders/CS123Shader.cpp \
     lib/ResourceLoader.cpp \
     particles/ParticleSystem.cpp \
-    ta_shapes/FullScreenQuad.cpp \
-    ta_shapes/SphereMesh.cpp \
-    ta_shapes/CubeMesh.cpp \
-    ta_shapes/ConeMesh.cpp \
-    ta_shapes/ParameterizedMesh.tpp \
-    ta_shapes/ParameterizedMesh.cpp \
-    ta_shapes/Mesh.cpp \
+    shapes/FullScreenQuad.cpp \
+    shapes/SphereMesh.cpp \
+    shapes/CubeMesh.cpp \
+    shapes/ConeMesh.cpp \
+    shapes/ParameterizedMesh.tpp \
+    shapes/ParameterizedMesh.cpp \
+    shapes/Mesh.cpp \
     ui/view.cpp \
     ui/viewformat.cpp \
     ui/mainwindow.cpp \
     glew-1.10.0/src/glew.c \
-    main.cpp
+    main.cpp \
+    game/World.cpp \
+    game/DemoWorld.cpp \
+    game/LightWorld.cpp \
+    game/WaterWorld.cpp \
+    game/RockWorld.cpp \
+    game/PhysicsWorld.cpp
 
 HEADERS += \
     camera/Player.h \
@@ -64,21 +70,27 @@ HEADERS += \
     lib/ResourceLoader.h \
     lib/CS123SceneData.h \
     particles/ParticleSystem.h \
-    ta_shapes/FullScreenQuad.h \
-    ta_shapes/SphereMesh.h \
-    ta_shapes/CubeMesh.h \
-    ta_shapes/ConeMesh.h \
-    ta_shapes/ParameterizedMesh.h \
-    ta_shapes/Mesh.h \
+    shapes/FullScreenQuad.h \
+    shapes/SphereMesh.h \
+    shapes/CubeMesh.h \
+    shapes/ConeMesh.h \
+    shapes/ParameterizedMesh.h \
+    shapes/Mesh.h \
     ui/view.h \
     ui/viewformat.h \
     ui/mainwindow.h \
     ui_mainwindow.h \
-    glew-1.10.0/include/GL/glew.h
+    glew-1.10.0/include/GL/glew.h \
+    game/World.h \
+    game/DemoWorld.h \
+    game/LightWorld.h \
+    game/WaterWorld.h \
+    game/RockWorld.h \
+    game/PhysicsWorld.h
 
 FORMS += ui/mainwindow.ui
-INCLUDEPATH += camera glm lib particles ta_shapes ui glew-1.10.0/include
-DEPENDPATH += camera glm lib particles ta_shapes ui glew-1.10.0/include
+INCLUDEPATH += camera game glm lib libraries particles shapes ui glew-1.10.0/include
+DEPENDPATH += camera game glm lib libraries particles shapes ui glew-1.10.0/include
 
 DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL

@@ -18,14 +18,26 @@
 #include "Player.h"
 #include "ParticleSystem.h"
 
+#include "DemoWorld.h"
+#include "LightWorld.h"
+#include "WaterWorld.h"
+#include "RockWorld.h"
+#include "PhysicsWorld.h"
+
 #include <QApplication>
 #include <QKeyEvent>
 #include <iostream>
 
+float View::m_globalTime = 0.0f;
+float View::m_rockTime = 0.0f;
+std::unique_ptr<Player> View::m_player = nullptr;
+std::unique_ptr<SphereMesh> View::m_sphere = nullptr;
+std::unique_ptr<CubeMesh> View::m_cube = nullptr;
+std::unique_ptr<ConeMesh> View::m_cone = nullptr;
+
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
-    m_exposure(1.0f), m_useAdaptiveExposure(true),
-    m_lightOrigin(glm::vec3(0)), m_lightTime(INFINITY)
+    m_exposure(1.0f), m_useAdaptiveExposure(true)
 {
     // View needs all mouse move events, not just mouse drag events
     setMouseTracking(true);
@@ -42,6 +54,7 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 
 View::~View()
 {
+    for (auto w : m_worlds) delete w;
     glDeleteVertexArrays(1, &m_fullscreenQuadVAO);
 }
 
@@ -61,30 +74,21 @@ void View::initializeGL() {
     glFrontFace(GL_CCW);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
+    glGenVertexArrays(1, &m_fullscreenQuadVAO);
+
     m_sphere = std::make_unique<SphereMesh>(10, 10);
     m_cube = std::make_unique<CubeMesh>(1);
     m_cone = std::make_unique<ConeMesh>(20, 20);
     m_lightSphere = std::make_unique<SphereMesh>(15, 15);
     m_fullscreenQuad = std::make_unique<FullScreenQuad>();
 
-    std::string vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
-    std::string fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.frag");
-    m_deferredProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
-
-    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
-    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lightWorld.frag");
-    m_lightWorldProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
-
-    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.vert");
-    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/waterWorld.frag");
-    m_waterWorldProgram = std::make_shared<CS123Shader>(vertexSource, fragmentSource);
-
-    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.vert");
-    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.frag");
+    // Shader setup
+    std::string vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.vert");
+    std::string fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.frag");
     m_lightingProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/rock.vert");
-    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/shader.frag");
+    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/rock.frag");
     m_rockProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
@@ -98,8 +102,6 @@ void View::initializeGL() {
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/distortion.frag");
     m_distortionProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
-
-    glGenVertexArrays(1, &m_fullscreenQuadVAO);
 
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/horizontalBlur.frag");
@@ -117,7 +119,18 @@ void View::initializeGL() {
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/bloom.frag");
     m_bloomProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
+    // Player setup
     m_player = std::make_unique<Player>(m_width, m_height);
+
+    m_lightParticles = std::make_shared<ParticleSystem>(5000,
+                                                        ":/shaders/lightParticlesDraw.frag",
+                                                        ":/shaders/lightParticlesDraw.vert",
+                                                        ":/shaders/lightParticlesUpdate.frag");
+    m_fireParticles = std::make_shared<ParticleSystem>(1000,
+                                                       ":/shaders/fireParticlesDraw.frag",
+                                                       ":/shaders/fireParticlesDraw.vert",
+                                                       ":/shaders/fireParticlesUpdate.frag");
+
     QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
     m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
                                               shieldMapImage.width(),
@@ -129,17 +142,13 @@ void View::initializeGL() {
     TextureParameters parameters = builder.build();
     parameters.applyTo(*m_shieldMap);
 
-    m_lightParticles = std::make_shared<ParticleSystem>(5000,
-                                                        ":/shaders/lightParticlesDraw.frag",
-                                                        ":/shaders/lightParticlesDraw.vert",
-                                                        ":/shaders/lightParticlesUpdate.frag");
-
-    m_fireParticles = std::make_shared<ParticleSystem>(1000,
-                                                       ":/shaders/fireParticlesDraw.frag",
-                                                       ":/shaders/fireParticlesDraw.vert",
-                                                       ":/shaders/fireParticlesUpdate.frag");
-
-    setWorld();
+    // World setup
+    m_worlds.push_back(new DemoWorld());
+    m_worlds.push_back(new LightWorld());
+    m_worlds.push_back(new WaterWorld());
+    m_worlds.push_back(new RockWorld());
+    m_worlds.push_back(new PhysicsWorld());
+    m_worlds[m_world]->makeCurrent();
 }
 
 void View::resizeGL(int w, int h) {
@@ -185,7 +194,7 @@ void View::paintGL() {
     // Draw to deferred buffer
     glDisable(GL_BLEND);
 
-    auto worldProgram = getWorldProgram();
+    auto worldProgram = m_worlds[m_world]->getWorldProgram();
 
     worldProgram->bind();
     m_deferredBuffer->bind();
@@ -197,12 +206,12 @@ void View::paintGL() {
     worldProgram->setUniform("P", P);
 
     if (m_drawMode != DrawMode::LIGHTS) {
-        drawGeometry(worldProgram);
+        m_worlds[m_world]->drawGeometry();
         drawParticles(0, V, P);
         drawRocks(V, P);
     } else {
         // Draw point lights as geometry
-        for (auto& light : m_lights) {
+        for (auto& light : m_worlds[m_world]->getLights()) {
             if (light.type == LightType::LIGHT_POINT) {
                 glm::mat4 M = glm::translate(light.pos) * glm::scale(glm::vec3(2.0f * light.radius));
                 worldProgram->setUniform("M", M);
@@ -255,7 +264,7 @@ void View::paintGL() {
         m_lightingProgram->setTexture("nor", m_deferredBuffer->getColorAttachment(1));
         m_lightingProgram->setTexture("diff", m_deferredBuffer->getColorAttachment(3));
         m_lightingProgram->setTexture("spec", m_deferredBuffer->getColorAttachment(4));
-        for (auto& light : m_lights) {
+        for (auto& light : m_worlds[m_world]->getLights()) {
             // Light uniforms
             m_lightingProgram->setUniform("light.type", static_cast<int>(light.type));
             m_lightingProgram->setUniform("light.col", light.col);
@@ -424,99 +433,21 @@ void View::paintGL() {
     }
 }
 
-void View::drawGeometry(std::shared_ptr<CS123Shader> program) {
-    glm::mat4 M;
-    CS123SceneMaterial mat;
-    if (m_world == World::WORLD_DEMO || m_world == World::WORLD_2) {
-        // sphere 1
-        M = glm::translate(glm::vec3(glm::sin(m_globalTime), 0.0f, 0.0f));
-        program->setUniform("M", M);
-        mat.cAmbient = glm::vec4(0.1, 0, 0, 1);
-        mat.cDiffuse = glm::vec4(0, 1, 0, 1);
-        mat.cSpecular = glm::vec4(0, 0, 1, 1);
-        mat.shininess = 20.0f;
-        program->applyMaterial(mat);
-        m_sphere->draw();
-
-        // sphere 2
-        M = glm::translate(glm::vec3(0.0f, 0.0f, glm::cos(m_globalTime)));
-        program->setUniform("M", M);
-        mat.cAmbient = glm::vec4(0.07, 0.07, 0, 1);
-        mat.cDiffuse = glm::vec4(1, 0, 1, 1);
-        mat.cSpecular = glm::vec4(0, 1, 1, 1);
-        mat.shininess = 100.0f;
-        program->applyMaterial(mat);
-        m_sphere->draw();
-
-        // sphere 3
-        M = glm::translate(glm::vec3(0.0f, 1.5f, 0.0f));
-        program->setUniform("M", M);
-        mat.cAmbient = glm::vec4(0.2, 0.2, 0.4, 1);
-        mat.cDiffuse = glm::vec4(1.3, 2, 1.2, 1);
-        mat.cSpecular = glm::vec4(2, 1, 1, 1);
-        mat.shininess = 50.0f;
-        program->applyMaterial(mat);
-        m_sphere->draw();
-
-        // cube
-        M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(3.0f, 1.0f, 3.0f));
-        program->setUniform("M", M);
-        mat.cAmbient = glm::vec4(0, 0, 0, 1);
-        mat.cDiffuse = glm::vec4(0.25, 0.25, 0.25, 1);
-        mat.cSpecular = glm::vec4(1, 0, 1, 1);
-        mat.shininess = 10.0f;
-        program->applyMaterial(mat);
-        m_cube->draw();
-    } else if (m_world == World::WORLD_1) {
-        program->setUniform("origin", m_lightOrigin);
-        program->setUniform("time", m_lightTime);
-
-        // floor
-        M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(30.0f, 0.3f, 30.0f));
-        program->setUniform("M", M);
-        m_cube->draw();
-
-        // box
-        M = glm::translate(glm::vec3(0.0f, -0.5f, 0.0f)) * glm::scale(glm::vec3(1.5f, 2.0f, 1.5f));
-        program->setUniform("M", M);
-        m_cube->draw();
-
-        // walls
-        M = glm::translate(glm::vec3(7.0f, 2.5f, 0.0f)) * glm::scale(glm::vec3(1.0f, 7.0f, 7.0f));
-        program->setUniform("M", M);
-        m_cube->draw();
-
-        M = glm::translate(glm::vec3(0.0f, 2.5f, 7.0f)) * glm::scale(glm::vec3(7.0f, 7.0f, 1.0f));
-        program->setUniform("M", M);
-        m_cube->draw();
-    } else if (m_world == World::WORLD_3) {
-        // floor
-        M = glm::translate(glm::vec3(0.0f, -1.0f, 0.0f)) * glm::scale(glm::vec3(3.0f, 0.25f, 3.0f));
-        program->setUniform("M", M);
-        mat.cAmbient = 0.5f*glm::vec4(0.25, 0.25, 0.1, 1);
-        mat.cDiffuse = 0.5f*glm::vec4(0.5, 0.25, 0.3, 1);
-        mat.cSpecular = 0.5f*glm::vec4(0.5, 0.5, 1, 1);
-        mat.shininess = 10.0f;
-        program->applyMaterial(mat);
-        m_cube->draw();
-    }
-}
-
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
-    if (m_world == World::WORLD_DEMO) {
+    if (m_world == WorldState::WORLD_DEMO) {
         m_lightParticles->update(dt);
-    } else if (m_world == World::WORLD_2) {
+    } else if (m_world == WorldState::WORLD_2) {
         m_fireParticles->update(dt);
     }
     glBindVertexArray(0);
 
     // Bind the deferred buffer to draw the particles
     m_deferredBuffer->bind();
-    if (m_world == World::WORLD_DEMO) {
+    if (m_world == WorldState::WORLD_DEMO) {
         m_lightParticles->render(V, P, &drawCube, this);
-    } else if (m_world == World::WORLD_2) {
+    } else if (m_world == WorldState::WORLD_2) {
         m_fireParticles->render(V, P, &drawFire, this);
     }
 }
@@ -541,17 +472,11 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
     m_rockProgram->setUniform("P", P);
     m_rockProgram->setUniform("time", m_rockTime);
 
-    if (m_world == World::WORLD_3) {
+    if (m_world == WorldState::WORLD_3) {
         glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
                 glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
                 glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
         m_rockProgram->setUniform("M", M);
-        CS123SceneMaterial mat;
-        mat.cAmbient = 0.25f*glm::vec4(0.137, 0.094, 0.118, 1);
-        mat.cDiffuse = 0.25f*glm::vec4(0.443, 0.263, 0.2, 1);
-        mat.cSpecular = 0.25f*glm::vec4(0.773, 0.561, 0.419, 1);
-        mat.shininess = 1.0f;
-        m_rockProgram->applyMaterial(mat);
         m_cone->draw();
 
         M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
@@ -576,61 +501,6 @@ void View::drawDistortionObjects() {
     M = glm::translate(glm::vec3(0.0f, 0.5f, 0.0f)) * glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
     m_distortionStencilProgram->setUniform("M", M);
     m_cube->draw();
-}
-
-void View::worldUpdate(float dt) {
-    if (m_world == World::WORLD_DEMO) {
-        m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
-        m_player->setCenter(glm::vec3(0));
-    } else if (m_world == World::WORLD_1) {
-        const float RING_DURATION = 5.0f;
-        if (m_lightTime == INFINITY || m_lightTime > RING_DURATION) {
-            m_lightTime = 0.0f;
-            m_lightOrigin = m_player->getEye();
-        } else {
-            m_lightTime += dt;
-        }
-    } else if (m_world == World::WORLD_2) {
-//        m_player->setEye(glm::vec3(6.0f * glm::sin(m_globalTime/3.0f), 1.0f, 6.0f * glm::cos(m_globalTime/3.0f)));
-        m_player->setEye(glm::vec3(0.0f, 1.5f + 0.5f * glm::sin(m_globalTime/3.0f), 6.0f));
-        m_player->setCenter(glm::vec3(0));
-    } else if (m_world == World::WORLD_3) {
-        m_player->setEye(glm::vec3(0.0f, 1.5f + 0.5f * glm::sin(m_globalTime/3.0f), 6.0f));
-        m_player->setCenter(glm::vec3(0));
-        m_rockTime += dt;
-    }
-}
-
-void View::setWorld() {
-    // Set camera
-    if (m_world == World::WORLD_DEMO) {
-        // camera gets set in update
-    } else if (m_world == World::WORLD_1) {
-        m_player->setEye(glm::vec3(-4, 2, -4));
-        m_player->setCenter(glm::vec3(0));
-    }
-
-    // Set lights
-    m_lights.clear();
-    if (m_world == World::WORLD_DEMO) {
-        m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
-        m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
-    } else if (m_world == World::WORLD_1) {
-        // no lights
-    } else if (m_world == World::WORLD_2 || World::WORLD_3) {
-//        m_lights.push_back(Light(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f), glm::vec3(1.0f, 1.5f, 15.8f)));
-        m_lights.push_back(Light(glm::vec3(-1.0f), glm::vec3(0.7f)));
-    }
-}
-
-std::shared_ptr<CS123Shader> View::getWorldProgram() {
-    if (m_world == World::WORLD_DEMO || m_world == World::WORLD_3 || m_drawMode == DrawMode::LIGHTS) {
-        return m_deferredProgram;
-    } else if (m_world == World::WORLD_1){
-        return m_lightWorldProgram;
-    } else {
-        return m_waterWorldProgram;
-    }
 }
 
 void View::mousePressEvent(QMouseEvent *event) {
@@ -659,13 +529,14 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_9) m_drawMode = m_drawMode == DrawMode::BRIGHT ? DrawMode::BRIGHT_BLUR : DrawMode::BRIGHT;
     else if (event->key() == Qt::Key_0) m_drawMode = DrawMode::NO_DISTORTION;
 
-    World prevWorld = m_world;
-    if (event->key() == Qt::Key_F1) m_world = World::WORLD_DEMO;
-    else if (event->key() == Qt::Key_F2) m_world = World::WORLD_1;
-    else if (event->key() == Qt::Key_F3) m_world = World::WORLD_2;
-    else if (event->key() == Qt::Key_F4) m_world = World::WORLD_3;
+    WorldState prevWorld = m_world;
+    if (event->key() == Qt::Key_F1) m_world = WorldState::WORLD_DEMO;
+    else if (event->key() == Qt::Key_F2) m_world = WorldState::WORLD_1;
+    else if (event->key() == Qt::Key_F3) m_world = WorldState::WORLD_2;
+    else if (event->key() == Qt::Key_F4) m_world = WorldState::WORLD_3;
+    else if (event->key() == Qt::Key_F5) m_world = WorldState::WORLD_4;
 
-    if (m_world != prevWorld) setWorld();
+    if (m_world != prevWorld) m_worlds[m_world]->makeCurrent();
 
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
     if (event->key() == Qt::Key_O) m_rockTime = 0.0f;
@@ -683,7 +554,7 @@ void View::tick() {
 
     m_globalTime += dt;
 
-    worldUpdate(dt);
+    m_worlds[m_world]->update(dt);
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
     update();
