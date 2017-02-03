@@ -15,6 +15,7 @@ win32 {
 
 SOURCES += \
     camera/Player.cpp \
+    game/Entity.cpp \
     game/World.cpp \
     game/DemoWorld.cpp \
     game/LightWorld.cpp \
@@ -52,6 +53,7 @@ SOURCES += \
 
 HEADERS += \
     camera/Player.h \
+    game/Entity.h \
     game/World.h \
     game/DemoWorld.h \
     game/LightWorld.h \
