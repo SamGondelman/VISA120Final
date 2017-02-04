@@ -7,6 +7,7 @@ uniform float time;
 
 out vec4 pos;
 out vec3 nor;
+out vec3 edge;
 
 // Transformation matrices
 uniform mat4 P;
@@ -31,5 +32,7 @@ void main() {
 
     pos = V * M * vec4(mPos, 1);
     nor = normalize(mat3(transpose(inverse(V * M))) * normal);
+    edge = vec3(0);
+    edge[gl_VertexID % 3] = 1;
     gl_Position = P * pos;
 }

@@ -6,6 +6,7 @@
 #include <QTime>
 #include <QTimer>
 #include <memory>
+#include <set>
 
 #include "glm/glm.hpp"
 
@@ -60,6 +61,8 @@ public:
     static std::unique_ptr<CubeMesh> m_cube;
     static std::unique_ptr<ConeMesh> m_cone;
     static std::unique_ptr<CylinderMesh> m_cylinder;
+
+    static std::set<int> m_pressedKeys;
 
 private:
     int m_width;

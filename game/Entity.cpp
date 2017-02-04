@@ -8,8 +8,9 @@
 #include <BulletDynamics/Dynamics/btRigidBody.h>
 
 Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
-               btVector3 pos, btVector3 scale, btQuaternion rot) :
-    m_shapeType(shapeType)
+               btVector3 pos, btVector3 scale, CS123SceneMaterial mat, btQuaternion rot, btVector3 vel) :
+    m_shapeType(shapeType),
+    m_mat(mat)
 {
     switch (m_shapeType) {
         case ShapeType::CUBE:
@@ -47,6 +48,7 @@ Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType sha
                                                     m_collShape.get(),
                                                     localInertia);
     m_rigidBody = std::make_unique<btRigidBody>(rbInfo);
+    m_rigidBody->setLinearVelocity(vel);
 
     physWorld->addRigidBody(m_rigidBody.get());
 }

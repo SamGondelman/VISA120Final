@@ -19,6 +19,7 @@
 #include "Player.h"
 #include "ParticleSystem.h"
 
+#include "Entity.h"
 #include "World.h"
 #include "DemoWorld.h"
 #include "LightWorld.h"
@@ -37,6 +38,7 @@ std::unique_ptr<SphereMesh> View::m_sphere = nullptr;
 std::unique_ptr<CubeMesh> View::m_cube = nullptr;
 std::unique_ptr<ConeMesh> View::m_cone = nullptr;
 std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
+std::set<int> View::m_pressedKeys = std::set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
@@ -476,19 +478,17 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
     m_rockProgram->setUniform("P", P);
     m_rockProgram->setUniform("time", m_rockTime);
 
-    if (m_world == WorldState::WORLD_3) {
-        glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
-                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
-                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
-        m_rockProgram->setUniform("M", M);
-        m_cone->draw();
+    glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
+            glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
+            glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+    m_rockProgram->setUniform("M", M);
+    m_cone->draw();
 
-        M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
-                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
-                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
-        m_rockProgram->setUniform("M", M);
-        m_sphere->draw();
-    }
+    M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
+            glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
+            glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+    m_rockProgram->setUniform("M", M);
+    m_sphere->draw();
 
     m_rockProgram->unbind();
     glEnable(GL_CULL_FACE);
@@ -520,6 +520,8 @@ void View::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 void View::keyPressEvent(QKeyEvent *event) {
+    if (!event->isAutoRepeat()) m_pressedKeys.insert(event->key());
+
     if (event->key() == Qt::Key_Escape) QApplication::quit();
 
     if (event->key() == Qt::Key_1) m_drawMode = DrawMode::DEFAULT;
@@ -543,12 +545,10 @@ void View::keyPressEvent(QKeyEvent *event) {
     if (m_world != prevWorld) m_worlds[m_world]->makeCurrent();
 
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
-    if (event->key() == Qt::Key_O) m_rockTime = 0.0f;
-
 }
 
 void View::keyReleaseEvent(QKeyEvent *event) {
-
+    if (!event->isAutoRepeat()) m_pressedKeys.erase(event->key());
 }
 
 void View::tick() {
@@ -557,6 +557,29 @@ void View::tick() {
     if (dt != 0.0f) m_fps = 0.02f / dt + 0.98f * m_fps;
 
     m_globalTime += dt;
+    if (m_pressedKeys.find(Qt::Key_O) != m_pressedKeys.end()) {
+        m_rockTime += dt;
+        m_rockTime = std::min(1.75f, m_rockTime);
+        if (m_rockTime == 1.75f) {
+            CS123SceneMaterial mat;
+            mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
+            mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
+            mat.cSpecular = glm::vec4(0.25f*glm::vec3(0.773, 0.561, 0.419), 1);
+            mat.shininess = 1.0f;
+            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
+                                                          ShapeType::SPHERE, 1.0f, btVector3(-0.75, 0, 0.0),
+                                                          btVector3(0.5, 1.0, 0.5), mat, btQuaternion(0, 0, -M_PI/2.0f),
+                                                          btVector3(20, 0, 0));
+            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
+                                                          ShapeType::CONE, 1.0f, btVector3(0.75, 0, 0.0),
+                                                          btVector3(0.5, 1.0, 0.5), mat, btQuaternion(0, 0, -M_PI/2.0f),
+                                                          btVector3(20, 0, 0));
+            m_rockTime = 0.0f;
+            m_pressedKeys.erase(Qt::Key_O);
+        }
+    } else {
+        m_rockTime = std::max(0.0f, m_rockTime - 5 * dt);
+    }
 
     m_worlds[m_world]->update(dt);
 
