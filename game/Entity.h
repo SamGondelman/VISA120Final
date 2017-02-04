@@ -10,7 +10,7 @@
 #include <BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h>
 
 enum ShapeType {
-    CUBE,
+    CUBE = 0,
     SPHERE,
     CYLINDER,
     CONE,
@@ -21,7 +21,7 @@ enum ShapeType {
 class Entity {
 public:
     Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
-           btVector3 pos, btVector3 scale, btQuaternion rot = btQuaternion());
+           btVector3 pos, btVector3 scale, btQuaternion rot = btQuaternion(0, 0, 0, 1));
 
     void getModelMatrix(glm::mat4& m);
     void draw();

@@ -14,6 +14,7 @@ class FBO;
 class SphereMesh;
 class CubeMesh;
 class ConeMesh;
+class CylinderMesh;
 class FullScreenQuad;
 class Light;
 class Player;
@@ -58,6 +59,7 @@ public:
     static std::unique_ptr<SphereMesh> m_sphere;
     static std::unique_ptr<CubeMesh> m_cube;
     static std::unique_ptr<ConeMesh> m_cone;
+    static std::unique_ptr<CylinderMesh> m_cylinder;
 
 private:
     int m_width;

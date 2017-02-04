@@ -53,8 +53,8 @@ CylinderMesh::~CylinderMesh()
 {
 }
 
-void CylinderMesh::draw() {
-    m_topCap.draw();
-    m_barrel.draw();
-    m_bottomCap.draw();
+void CylinderMesh::draw(int num) {
+    m_topCap.draw(num);
+    m_barrel.draw(num);
+    m_bottomCap.draw(num);
 }

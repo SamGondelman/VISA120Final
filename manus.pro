@@ -42,6 +42,7 @@ SOURCES += \
     shapes/SphereMesh.cpp \
     shapes/CubeMesh.cpp \
     shapes/ConeMesh.cpp \
+    shapes/CylinderMesh.cpp \
     shapes/ParameterizedMesh.tpp \
     shapes/ParameterizedMesh.cpp \
     shapes/Mesh.cpp \
@@ -82,6 +83,7 @@ HEADERS += \
     shapes/SphereMesh.h \
     shapes/CubeMesh.h \
     shapes/ConeMesh.h \
+    shapes/CylinderMesh.h \
     shapes/ParameterizedMesh.h \
     shapes/Mesh.h \
     ui/view.h \

@@ -4,6 +4,7 @@
 #include "CubeMesh.h"
 #include "SphereMesh.h"
 #include "ConeMesh.h"
+#include "CylinderMesh.h"
 #include <BulletDynamics/Dynamics/btRigidBody.h>
 
 Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
@@ -19,9 +20,9 @@ Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType sha
                 m_collShape = std::make_unique<btSphereShape>(scale[0] / 2.0f);
             } else {
                 btVector3 p(0, 0, 0);
-                btScalar r(1.0f);
+                btScalar r(0.5f);
                 m_collShape = std::make_unique<btMultiSphereShape>(&p, &r, 1);
-                m_collShape->setLocalScaling(scale / 2.0f);
+                m_collShape->setLocalScaling(scale);
             }
             break;
         case ShapeType::CYLINDER:
@@ -66,6 +67,7 @@ void Entity::draw() {
             View::m_sphere->draw();
             break;
         case ShapeType::CYLINDER:
+            View::m_cylinder->draw();
             break;
         case ShapeType::CONE:
             View::m_cone->draw();

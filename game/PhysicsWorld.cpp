@@ -24,18 +24,24 @@ void PhysicsWorld::makeCurrent() {
     m_lights.clear();
     m_lights.emplace_back(glm::vec3(-1.0f), glm::vec3(0.7f));
 
-    for (auto& e : m_entities) m_physWorld->removeRigidBody(e.m_rigidBody.get());
-    m_entities.clear();
-    m_solver->reset();
-    m_physWorld->clearForces();
-    m_broadphase->resetPool(m_dispatcher.get());
+    if (m_entities.size() > 0) {
+        for (auto& e : m_entities) m_physWorld->removeRigidBody(e.m_rigidBody.get());
+        m_entities.clear();
+        m_solver->reset();
+        m_physWorld->clearForces();
+        m_broadphase->resetPool(m_dispatcher.get());
+    }
 
     m_entities.emplace_back(m_physWorld, ShapeType::SPHERE, 1.0f,
-                            btVector3(0.51, 2, 0), btVector3(1.5, 0.2, 1.5));
+                            btVector3(1.5, 2, 0), btVector3(1.0, 1.0, 1.0));
     m_entities.emplace_back(m_physWorld, ShapeType::CONE, 1.0f,
-                            btVector3(-0.51, 2, 0), btVector3(1.0, 2.0, 1.0));
+                            btVector3(-1.5, 2, 0), btVector3(1.0, 1.0, 1.0));
+    m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 1.0f,
+                            btVector3(0, 2, -1.5), btVector3(1.0, 1.0, 1.0));
+    m_entities.emplace_back(m_physWorld, ShapeType::CYLINDER, 1.0f,
+                            btVector3(0, 2, 1.5), btVector3(1.0, 1.0, 1.0));
     m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 0.0f,
-                            btVector3(0, 0, 0), btVector3(1.0, 1.5, 1.0));
+                            btVector3(0, 0, 0), btVector3(3.0, 0.5, 3.0));
 }
 
 void PhysicsWorld::update(float dt) {

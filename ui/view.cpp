@@ -13,6 +13,7 @@
 #include "SphereMesh.h"
 #include "CubeMesh.h"
 #include "ConeMesh.h"
+#include "CylinderMesh.h"
 #include "gl/datatype/VAO.h"
 #include "FullScreenQuad.h"
 #include "Player.h"
@@ -35,6 +36,7 @@ std::unique_ptr<Player> View::m_player = nullptr;
 std::unique_ptr<SphereMesh> View::m_sphere = nullptr;
 std::unique_ptr<CubeMesh> View::m_cube = nullptr;
 std::unique_ptr<ConeMesh> View::m_cone = nullptr;
+std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
@@ -79,6 +81,7 @@ void View::initializeGL() {
     m_sphere = std::make_unique<SphereMesh>(10, 10);
     m_cube = std::make_unique<CubeMesh>(1);
     m_cone = std::make_unique<ConeMesh>(20, 20);
+    m_cylinder = std::make_unique<CylinderMesh>(20, 20);
     m_lightSphere = std::make_unique<SphereMesh>(15, 15);
     m_fullscreenQuad = std::make_unique<FullScreenQuad>();
 
