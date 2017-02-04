@@ -22,6 +22,7 @@ class Player;
 class ParticleSystem;
 class Texture2D;
 class World;
+class Entity;
 
 enum DrawMode {
     POSITION = 0,
@@ -51,6 +52,8 @@ class View : public QGLWidget {
 public:
     View(QWidget *parent);
     ~View();
+
+    void switchWorld();
 
     static float m_globalTime;
     static float m_rockTime;                    // FOR TESTING ONLY
@@ -82,6 +85,8 @@ private:
     std::shared_ptr<ParticleSystem> m_fireParticles;
     void drawFire(int num);
     std::unique_ptr<Texture2D> m_shieldMap;
+    std::unique_ptr<Entity> m_leftShield;
+    std::unique_ptr<Entity> m_rightShield;
 
     // Game state
     DrawMode m_drawMode;

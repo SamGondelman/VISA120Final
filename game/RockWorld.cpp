@@ -39,9 +39,11 @@ void RockWorld::update(float dt) {
 void RockWorld::drawGeometry() {
     glm::mat4 m;
     for (auto& e : m_entities) {
-        e.getModelMatrix(m);
-        m_program->setUniform("M", m);
-        m_program->applyMaterial(e.getMaterial());
-        e.draw();
+        if (e.m_draw) {
+            e.getModelMatrix(m);
+            m_program->setUniform("M", m);
+            m_program->applyMaterial(e.getMaterial());
+            e.draw();
+        }
     }
 }

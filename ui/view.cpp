@@ -41,7 +41,8 @@ std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
 std::set<int> View::m_pressedKeys = std::set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_time(), m_timer(), m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
+    m_leftShield(nullptr), m_rightShield(nullptr),
+    m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
     m_exposure(1.0f), m_useAdaptiveExposure(true)
 {
     // View needs all mouse move events, not just mouse drag events
@@ -153,7 +154,7 @@ void View::initializeGL() {
     m_worlds.push_back(std::make_shared<WaterWorld>());
     m_worlds.push_back(std::make_shared<RockWorld>());
     m_worlds.push_back(std::make_shared<PhysicsWorld>());
-    m_worlds[m_world]->makeCurrent();
+    switchWorld();
 }
 
 void View::resizeGL(int w, int h) {
@@ -496,15 +497,15 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
 
 void View::drawDistortionObjects() {
     m_distortionStencilProgram->setTexture("normalMap", *m_shieldMap);
-    // wall
-    glm::mat4 M = glm::translate(glm::vec3(0.0f, 0.0f, 1.5f)) * glm::scale(glm::vec3(1.5f, 1.5f, 0.05f));
-    m_distortionStencilProgram->setUniform("M", M);
-    m_cube->draw();
 
-    // box
-    M = glm::translate(glm::vec3(0.0f, 0.5f, 0.0f)) * glm::scale(glm::vec3(0.5f, 0.5f, 0.5f));
+    glm::mat4 M;
+    m_leftShield->getModelMatrix(M);
     m_distortionStencilProgram->setUniform("M", M);
-    m_cube->draw();
+    m_rightShield->draw();
+
+    m_rightShield->getModelMatrix(M);
+    m_distortionStencilProgram->setUniform("M", M);
+    m_rightShield->draw();
 }
 
 void View::mousePressEvent(QMouseEvent *event) {
@@ -542,7 +543,7 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_F4) m_world = WorldState::WORLD_3;
     else if (event->key() == Qt::Key_F5) m_world = WorldState::WORLD_4;
 
-    if (m_world != prevWorld) m_worlds[m_world]->makeCurrent();
+    if (m_world != prevWorld) switchWorld();
 
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
 }
@@ -557,6 +558,8 @@ void View::tick() {
     if (dt != 0.0f) m_fps = 0.02f / dt + 0.98f * m_fps;
 
     m_globalTime += dt;
+
+    // Rock spawning
     if (m_pressedKeys.find(Qt::Key_O) != m_pressedKeys.end()) {
         m_rockTime += dt;
         m_rockTime = std::min(1.75f, m_rockTime);
@@ -581,10 +584,38 @@ void View::tick() {
         m_rockTime = std::max(0.0f, m_rockTime - 5 * dt);
     }
 
+    // Shield movement
+    btTransform t;
+    t.setIdentity();
+    t.setOrigin(btVector3(2.2f * std::sin(m_globalTime/2.0f), 0, 2.2f * std::cos(m_globalTime/2.0f)));
+    t.setRotation(btQuaternion(m_globalTime/2.0f, 0, 0));
+    m_leftShield->m_rigidBody->setWorldTransform(t);
+    m_leftShield->m_rigidBody->getMotionState()->setWorldTransform(t);
+
     m_worlds[m_world]->update(dt);
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
     update();
+}
+
+void View::switchWorld() {
+    m_worlds[m_world]->makeCurrent();
+
+    if (!m_leftShield && !m_rightShield) {
+        m_leftShield = std::make_unique<Entity>(m_worlds[m_world]->getPhysWorld(), ShapeType::CUBE, 0.0f,
+                                                btVector3(0.0f, 0.0f, 1.5f), btVector3(1.5f, 1.5f, 0.05f));
+        m_leftShield->m_rigidBody->setCollisionFlags(m_leftShield->m_rigidBody->getCollisionFlags() |
+                                                     btCollisionObject::CF_KINEMATIC_OBJECT);
+        m_leftShield->m_rigidBody->setActivationState(DISABLE_DEACTIVATION);
+        m_rightShield = std::make_unique<Entity>(m_worlds[m_world]->getPhysWorld(), ShapeType::CUBE, 0.0f,
+                                                 btVector3(0.0f, 0.5f, 0.0f), btVector3(0.5f, 0.5f, 0.5f));
+        m_leftShield->m_rigidBody->setCollisionFlags(m_leftShield->m_rigidBody->getCollisionFlags() |
+                                                     btCollisionObject::CF_KINEMATIC_OBJECT);
+        m_leftShield->m_rigidBody->setActivationState(DISABLE_DEACTIVATION);
+    } else {
+        m_worlds[m_world]->getPhysWorld()->addRigidBody(m_leftShield->m_rigidBody.get());
+        m_worlds[m_world]->getPhysWorld()->addRigidBody(m_rightShield->m_rigidBody.get());
+    }
 }
 
 void View::printFPS() {

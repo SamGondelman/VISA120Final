@@ -9,9 +9,20 @@
 
 Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
                btVector3 pos, btVector3 scale, CS123SceneMaterial mat, btQuaternion rot, btVector3 vel) :
-    m_shapeType(shapeType),
-    m_mat(mat)
+    m_draw(true), m_shapeType(shapeType), m_mat(mat)
 {
+    setupRigidBody(physWorld, mass, pos, scale, rot, vel);
+}
+
+Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
+               btVector3 pos, btVector3 scale, btQuaternion rot, btVector3 vel) :
+    m_draw(false), m_shapeType(shapeType)
+{
+    setupRigidBody(physWorld, mass, pos, scale, rot, vel);
+}
+
+void Entity::setupRigidBody(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, btScalar& mass,
+      btVector3& pos, btVector3& scale, btQuaternion& rot, btVector3& vel) {
     switch (m_shapeType) {
         case ShapeType::CUBE:
             m_collShape = std::make_unique<btBoxShape>(scale / 2.0f);
