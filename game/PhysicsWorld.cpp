@@ -30,7 +30,7 @@ void PhysicsWorld::makeCurrent() {
     m_entities.emplace_back(m_physWorld, ShapeType::CYLINDER, 1.0f,
                             btVector3(0, 2, 1.5), btVector3(1.0, 1.0, 1.0), mat);
     m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 0.0f,
-                            btVector3(0, 0, 0), btVector3(3.0, 0.5, 3.0), mat);
+                            btVector3(0, -1, 0), btVector3(3.0, 0.5, 3.0), mat);
 }
 
 void PhysicsWorld::update(float dt) {

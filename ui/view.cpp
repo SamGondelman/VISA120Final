@@ -443,20 +443,14 @@ void View::paintGL() {
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
-    if (m_world == WorldState::WORLD_DEMO) {
-        m_lightParticles->update(dt);
-    } else if (m_world == WorldState::WORLD_2) {
-        m_fireParticles->update(dt);
-    }
+    m_lightParticles->update(dt, m_pressedKeys.find(Qt::Key_U) != m_pressedKeys.end());
+    m_fireParticles->update(dt, m_pressedKeys.find(Qt::Key_I) != m_pressedKeys.end());
     glBindVertexArray(0);
 
     // Bind the deferred buffer to draw the particles
     m_deferredBuffer->bind();
-    if (m_world == WorldState::WORLD_DEMO) {
-        m_lightParticles->render(V, P, &drawCube, this);
-    } else if (m_world == WorldState::WORLD_2) {
-        m_fireParticles->render(V, P, &drawFire, this);
-    }
+    m_lightParticles->render(V, P, &drawCube, this);
+    m_fireParticles->render(V, P, &drawFire, this);
 }
 
 void View::drawCube(int num) {

@@ -17,7 +17,7 @@ public:
                    std::string updateVert = ":/shaders/fullscreenQuad.vert",
                    int numColorAttachments = 2);
 
-    void update(float dt);
+    void update(float dt, bool active = true);
     void render(glm::mat4 &V, glm::mat4 &P, void(View::*drawFunc)(int), View *view);
 
 private:

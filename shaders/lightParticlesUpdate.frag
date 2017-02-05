@@ -1,5 +1,6 @@
 #version 400 core
 
+uniform float active;
 uniform float firstPass;
 uniform sampler2D prevPos;
 uniform sampler2D prevVel;
@@ -50,15 +51,19 @@ vec4 initVelocity(int index) {
     return vec4(calculateInitialVelocity(index), -calculateLifetime(index));
 }
 
-vec4 updatePosition(int index) {
-    vec4 pos = texture(prevPos, texCoord);
-    vec4 vel = texture(prevVel, texCoord);
+vec4 updatePosition(int index, vec4 pos, vec4 vel) {
+    if (vel.w < 0) {
+        vel = vec4(0);
+    }
     return vec4(pos.xyz + vel.xyz * dt, pos.w);
 }
 
-vec4 updateVelocity(int index) {
+vec4 updateVelocity(int index, vec4 pos, vec4 vel) {
+    if (vel.w < 0) {
+        return vel + vec4(0, 0, 0, dt);
+    }
     const float G = -0.1;
-    return texture(prevVel, texCoord) + vec4(0, G * dt, 0, dt);
+    return vel + vec4(0, G * dt, 0, dt);
 }
 
 void main() {
@@ -67,8 +72,12 @@ void main() {
         pos = initPosition(index);
         vel = initVelocity(index);
     } else {
-        pos = updatePosition(index);
-        vel = updateVelocity(index);
+        pos = texture(prevPos, texCoord);
+        vel = texture(prevVel, texCoord);
+        if (active > 0.5 || (active < 0.5 && vel.w > 0 && vel.w < pos.w)) {
+            pos = updatePosition(index, pos, vel);
+            vel = updateVelocity(index, pos, vel);
+        }
 
         if (pos.w < vel.w) {
             pos = initPosition(index);

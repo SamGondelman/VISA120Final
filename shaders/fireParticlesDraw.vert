@@ -25,7 +25,7 @@ void main() {
     diameter *= min(min(1.0, max(0, velAge.w) / (0.1 * posTime.w)),
                     min(1.0, abs(posTime.w - max(0, velAge.w)) / (0.1 * posTime.w)));
 
-    ageFrac = max(0, velAge.w) / posTime.w;
+    ageFrac = min(1, max(0, velAge.w) / posTime.w);
 
     vec3 unitV = normalize(velAge.xyz);
     float isUP = ceil(max(0, unitV.y - 0.99));

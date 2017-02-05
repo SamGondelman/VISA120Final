@@ -26,7 +26,7 @@ ParticleSystem::ParticleSystem(int numParticles, std::string drawFrag, std::stri
                                    TextureParameters::FILTER_METHOD::NEAREST, GL_FLOAT);
 }
 
-void ParticleSystem::update(float dt) {
+void ParticleSystem::update(float dt, bool active) {
     auto prevFBO = m_evenPass ? m_FBO1 : m_FBO2;
     auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
     float firstPass = m_firstPass ? 1.0f : 0.0f;
@@ -36,6 +36,7 @@ void ParticleSystem::update(float dt) {
     nextFBO->bind();
 
     // Setup update uniforms
+    m_updateProgram->setUniform("active", active ? 1.0f : 0.0f);
     m_updateProgram->setUniform("firstPass", firstPass);
     m_updateProgram->setUniform("numParticles", m_numParticles);
     m_updateProgram->setTexture("prevPos", prevFBO->getColorAttachment(0));

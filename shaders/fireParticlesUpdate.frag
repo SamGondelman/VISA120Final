@@ -1,5 +1,6 @@
 #version 400 core
 
+uniform float active;
 uniform float firstPass;
 uniform sampler2D prevPos;
 uniform sampler2D prevVel;
@@ -47,19 +48,20 @@ vec4 initPosition(int index) {
 
 vec4 initVelocity(int index) {
     const float VEL_MAG = 3.0;
-    return vec4(VEL_MAG * dir, 0);
+    return vec4(VEL_MAG * dir, -calculateLifetime(index));
 }
 
-vec4 updatePosition(int index) {
-    vec4 pos = texture(prevPos, texCoord);
-    vec4 vel = texture(prevVel, texCoord);
+vec4 updatePosition(int index, vec4 pos, vec4 vel) {
+    if (vel.w < 0) {
+        vel = vec4(0);
+    }
     return vec4(pos.xyz + vel.xyz * dt, pos.w);
 }
 
-vec4 updateVelocity(int index) {
-    vec4 pos = texture(prevPos, texCoord);
-    vec4 vel = texture(prevVel, texCoord);
-
+vec4 updateVelocity(int index, vec4 pos, vec4 vel) {
+    if (vel.w < 0) {
+        return vel + vec4(0, 0, 0, dt);
+    }
     vec3 a = (pos.xyz - spawn);
     vec3 a1 = dot(a, dir) * dir;
     float RAD_MAG = 20.0 * hash(index * 2935.0233);
@@ -78,8 +80,12 @@ void main() {
         pos = initPosition(index);
         vel = initVelocity(index);
     } else {
-        pos = updatePosition(index);
-        vel = updateVelocity(index);
+        pos = texture(prevPos, texCoord);
+        vel = texture(prevVel, texCoord);
+        if (active > 0.5 || (active < 0.5 && vel.w > 0 && vel.w < pos.w)) {
+            pos = updatePosition(index, pos, vel);
+            vel = updateVelocity(index, pos, vel);
+        }
 
         if (pos.w < vel.w) {
             pos = initPosition(index);
