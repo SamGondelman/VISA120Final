@@ -43,7 +43,7 @@ void main() {
     float att;
 
     if(light.type == 0){
-        L = vec3((V * vec4(light.posDir, 1)) - position);
+        L = vec3((V * vec4(light.posDir, 1))) - position;
         float dist = length(L);
         L = normalize(L);
         att = 1.0 / (light.func.x + light.func.y * dist + light.func.z * dist * dist);
