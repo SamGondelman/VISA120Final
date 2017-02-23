@@ -12,6 +12,8 @@ public:
     void setCenter(glm::vec3 center);
     void setAspectRatio(int width, int height);
 
+    float getNear() { return m_near; }
+    float getFar() { return m_far; }
     glm::vec3& getEye();
     glm::mat4 getView();
     glm::mat4 getPerspective();

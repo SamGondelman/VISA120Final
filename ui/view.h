@@ -10,6 +10,8 @@
 
 #include "glm/glm.hpp"
 
+#include <openvr.h>
+
 class CS123Shader;
 class FBO;
 class SphereMesh;
@@ -17,7 +19,7 @@ class CubeMesh;
 class ConeMesh;
 class CylinderMesh;
 class FullScreenQuad;
-class Light;
+struct Light;
 class Player;
 class ParticleSystem;
 class Texture2D;
@@ -125,6 +127,9 @@ private:
     void drawDistortionObjects();
 
     void initializeGL();
+    void initVR();
+    void updatePoses();
+    void updateInputs();
     void paintGL();
     void resizeGL(int w, int h);
 
@@ -134,6 +139,37 @@ private:
 
     void keyPressEvent(QKeyEvent *event);
     void keyReleaseEvent(QKeyEvent *event);
+
+    // VR stuff
+     vr::IVRSystem *m_hmd;
+     uint32_t m_eyeWidth, m_eyeHeight;
+     vr::TrackedDevicePose_t m_trackedDevicePose[vr::k_unMaxTrackedDeviceCount];
+     glm::mat4 m_matrixDevicePose[vr::k_unMaxTrackedDeviceCount];
+
+     glm::mat4 m_leftProjection, m_leftPose;
+     glm::mat4 m_rightProjection, m_rightPose;
+     glm::mat4 m_hmdPose;
+
+     bool m_inputNext[vr::k_unMaxTrackedDeviceCount];
+     bool m_inputPrev[vr::k_unMaxTrackedDeviceCount];
+
+     glm::mat4 vrMatrixToQt(const vr::HmdMatrix34_t &mat) {
+         return glm::mat4(
+             mat.m[0][0], mat.m[0][1], mat.m[0][2], mat.m[0][3],
+             mat.m[1][0], mat.m[1][1], mat.m[1][2], mat.m[1][3],
+             mat.m[2][0], mat.m[2][1], mat.m[2][2], mat.m[2][3],
+             0.0,         0.0,         0.0,         1.0f
+         );
+     }
+
+     glm::mat4 vrMatrixToQt(const vr::HmdMatrix44_t &mat) {
+         return glm::mat4(
+             mat.m[0][0], mat.m[0][1], mat.m[0][2], mat.m[0][3],
+             mat.m[1][0], mat.m[1][1], mat.m[1][2], mat.m[1][3],
+             mat.m[2][0], mat.m[2][1], mat.m[2][2], mat.m[2][3],
+             mat.m[3][0], mat.m[3][1], mat.m[3][2], mat.m[3][3]
+         );
+     }
 
 private slots:
     void tick();

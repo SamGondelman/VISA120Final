@@ -20,6 +20,11 @@ World::World(std::string vert, std::string frag)
     m_physWorld->setGravity(btVector3(0,-9.81,0));
 }
 
+World::~World() {
+    // Make current to clear physics states
+    makeCurrent();
+}
+
 void World::update(float dt) {
     m_physWorld->stepSimulation(dt);
 }

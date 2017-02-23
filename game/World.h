@@ -17,6 +17,7 @@ class World {
 public:
     World() {}
     World(std::string vert, std::string frag);
+    virtual ~World();
 
     virtual void makeCurrent();
     virtual void update(float dt);

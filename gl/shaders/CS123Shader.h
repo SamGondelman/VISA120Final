@@ -4,7 +4,7 @@
 #include "Shader.h"
 #include "CS123SceneData.h"
 
-class CS123SceneLightData;
+struct CS123SceneLightData;
 
 class CS123Shader : public Shader {
 public:

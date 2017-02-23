@@ -29,9 +29,9 @@
 
 #include <QApplication>
 #include <QKeyEvent>
+#include <QMessageBox>
+#include <QDebug>
 #include <iostream>
-
-#include <openvr.h>
 
 float View::m_globalTime = 0.0f;
 float View::m_rockTime = 0.0f;
@@ -63,6 +63,7 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 
 View::~View()
 {
+    if (m_hmd) vr::VR_Shutdown();
     // Must remove shields here to ensure entity deletion happens in right order
     m_worlds[m_world]->getPhysWorld()->removeRigidBody(m_leftShield->m_rigidBody.get());
     m_worlds[m_world]->getPhysWorld()->removeRigidBody(m_rightShield->m_rigidBody.get());
@@ -161,6 +162,51 @@ void View::initializeGL() {
     m_worlds.push_back(std::make_shared<RockWorld>());
     m_worlds.push_back(std::make_shared<PhysicsWorld>());
     switchWorld();
+
+    initVR();
+}
+
+void View::initVR() {
+    vr::EVRInitError error = vr::VRInitError_None;
+    m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
+
+    if (error != vr::VRInitError_None) {
+        m_hmd = nullptr;
+        QString message = vr::VR_GetVRInitErrorAsEnglishDescription(error);
+        qCritical() << message;
+        QMessageBox::critical(this, "Unable to init VR", message);
+        return;
+    }
+
+    // get eye matrices
+    m_rightProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Right, m_player->getNear(), m_player->getFar()));
+    m_rightPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Right)));
+
+    m_leftProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Left, m_player->getNear(), m_player->getFar()));
+    m_leftPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Left)));
+
+    // setup frame buffers for eyes
+    m_hmd->GetRecommendedRenderTargetSize(&m_eyeWidth, &m_eyeHeight);
+
+//    QOpenGLFramebufferObjectFormat buffFormat;
+//    buffFormat.setAttachment(QOpenGLFramebufferObject::Depth);
+//    buffFormat.setInternalTextureFormat(GL_RGBA8);
+//    buffFormat.setSamples(4);
+
+//    m_leftBuffer = new QOpenGLFramebufferObject(m_eyeWidth, m_eyeHeight, buffFormat);
+//    m_rightBuffer = new QOpenGLFramebufferObject(m_eyeWidth, m_eyeHeight, buffFormat);
+
+//    QOpenGLFramebufferObjectFormat resolveFormat;
+//    resolveFormat.setInternalTextureFormat(GL_RGBA8);
+//    buffFormat.setSamples(0);
+
+//    m_resolveBuffer = new QOpenGLFramebufferObject(m_eyeWidth*2, m_eyeHeight, resolveFormat);
+
+    if (!vr::VRCompositor()) {
+        QString message = "Compositor initialization failed. See log file for details";
+        qCritical() << message;
+        QMessageBox::critical(this, "Unable to init VR", message);
+    }
 }
 
 void View::resizeGL(int w, int h) {
@@ -479,17 +525,19 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
     m_rockProgram->setUniform("P", P);
     m_rockProgram->setUniform("time", m_rockTime);
 
-    glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
-            glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
-            glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
-    m_rockProgram->setUniform("M", M);
-    m_cone->draw();
+    if (m_rockTime > 0.0f) {
+        glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
+                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
+                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+        m_rockProgram->setUniform("M", M);
+        m_cone->draw();
 
-    M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
-            glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
-            glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
-    m_rockProgram->setUniform("M", M);
-    m_sphere->draw();
+        M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
+                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
+                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+        m_rockProgram->setUniform("M", M);
+        m_sphere->draw();
+    }
 
     m_rockProgram->unbind();
     glEnable(GL_CULL_FACE);
@@ -552,12 +600,58 @@ void View::keyReleaseEvent(QKeyEvent *event) {
     if (!event->isAutoRepeat()) m_pressedKeys.erase(event->key());
 }
 
+void View::updatePoses() {
+    vr::VRCompositor()->WaitGetPoses(m_trackedDevicePose, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
+
+    for (unsigned int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
+        if (m_trackedDevicePose[i].bPoseIsValid) {
+            m_matrixDevicePose[i] = vrMatrixToQt(m_trackedDevicePose[i].mDeviceToAbsoluteTracking);
+        }
+    }
+
+    if (m_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
+        m_hmdPose = glm::inverse(m_matrixDevicePose[vr::k_unTrackedDeviceIndex_Hmd]);
+    }
+}
+
+void View::updateInputs() {
+    vr::VREvent_t event;
+    while (m_hmd->PollNextEvent(&event, sizeof(event))) {
+        //ProcessVREvent( event );
+    }
+
+    for (vr::TrackedDeviceIndex_t i=0; i<vr::k_unMaxTrackedDeviceCount; i++ ) {
+        vr::VRControllerState_t state;
+        if (m_hmd->GetControllerState(i, &state, sizeof(state))) {
+//            if (state.ulButtonPressed & vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad)) {
+//                if (!m_inputNext[i]) {
+//                    m_inputNext[i] = true;
+//                }
+//            } else if (m_inputNext[i]) {
+//                m_inputNext[i] = false;
+//            }
+
+//            if (state.ulButtonPressed & vr::ButtonMaskFromId(vr::k_EButton_Grip)) {
+//                if (!m_inputPrev[i]) {
+//                    m_inputPrev[i] = true;
+//                }
+//            } else if (m_inputPrev[i]) {
+//                m_inputPrev[i] = false;
+//            }
+        }
+    }
+}
+
 void View::tick() {
     // Get the number of seconds since the last tick (variable update rate)
     float dt = m_time.restart() * 0.001f;
     if (dt != 0.0f) m_fps = 0.02f / dt + 0.98f * m_fps;
 
     m_globalTime += dt;
+
+    // VR updates
+    updatePoses();
+    updateInputs();
 
     // Rock spawning
     if (m_pressedKeys.find(Qt::Key_O) != m_pressedKeys.end()) {
