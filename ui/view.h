@@ -53,7 +53,7 @@ public:
     View(QWidget *parent);
     ~View();
 
-    void switchWorld();
+    void switchWorld(WorldState prevWorld = WorldState::WORLD_DEMO);
 
     static float m_globalTime;
     static float m_rockTime;                    // FOR TESTING ONLY
@@ -64,6 +64,7 @@ public:
     static std::unique_ptr<CubeMesh> m_cube;
     static std::unique_ptr<ConeMesh> m_cone;
     static std::unique_ptr<CylinderMesh> m_cylinder;
+    static GLuint m_fullscreenQuadVAO;
 
     static std::set<int> m_pressedKeys;
 
@@ -81,9 +82,7 @@ private:
 
     // Element effects
     std::shared_ptr<ParticleSystem> m_lightParticles;
-    void drawCube(int num);
     std::shared_ptr<ParticleSystem> m_fireParticles;
-    void drawFire(int num);
     std::unique_ptr<Texture2D> m_shieldMap;
     std::unique_ptr<Entity> m_leftShield;
     std::unique_ptr<Entity> m_rightShield;
@@ -103,7 +102,6 @@ private:
     std::unique_ptr<CS123Shader> m_distortionStencilProgram;
     std::unique_ptr<CS123Shader> m_distortionProgram;
 
-    GLuint m_fullscreenQuadVAO;
     std::unique_ptr<CS123Shader> m_textureProgram;
 
     std::unique_ptr<CS123Shader> m_brightProgram;

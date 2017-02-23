@@ -5,9 +5,6 @@ QT += opengl xml
 TARGET = manus
 TEMPLATE = app
 
-QMAKE_CXXFLAGS += -std=c++14
-CONFIG += c++14
-
 win32 {
     DEFINES += GLEW_STATIC
     LIBS += -lopengl32 -lglu32
@@ -93,8 +90,8 @@ HEADERS += \
     glew-1.10.0/include/GL/glew.h
 
 FORMS += ui/mainwindow.ui
-INCLUDEPATH += camera game glm lib libraries/bullet3/src particles shapes ui glew-1.10.0/include
-DEPENDPATH += camera game glm lib libraries/bullet3/src particles shapes ui glew-1.10.0/include
+INCLUDEPATH += camera game glm lib libraries libraries/bullet3/src libraries/openvr/headers particles shapes ui glew-1.10.0/include
+DEPENDPATH += camera game glm lib libraries libraries/bullet3/src libraries/openvr/headers particles shapes ui glew-1.10.0/include
 
 DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL
@@ -102,17 +99,6 @@ DEFINES += GLM_SWIZZLE GLM_FORCE_RADIANS
 OTHER_FILES += \
     images/*
     shaders/*
-
-QMAKE_CXXFLAGS_RELEASE -= -O2
-QMAKE_CXXFLAGS_RELEASE += -O3
-QMAKE_CXXFLAGS_WARN_ON -= -Wall
-QMAKE_CXXFLAGS_WARN_ON += -Waddress -Warray-bounds -Wc++0x-compat -Wchar-subscripts -Wformat\
-                          -Wmain -Wmissing-braces -Wparentheses -Wreorder -Wreturn-type \
-                          -Wsequence-point -Wsign-compare -Wstrict-overflow=1 -Wswitch \
-                          -Wtrigraphs -Wuninitialized -Wunused-label -Wunused-variable \
-                          -Wvolatile-register-var -Wno-extra
-
-QMAKE_CXXFLAGS += -g
 
 RESOURCES += \
     resources.qrc
@@ -236,7 +222,8 @@ SOURCES += \
     libraries/bullet3/src/LinearMath/btGeometryUtil.cpp \
     libraries/bullet3/src/LinearMath/btConvexHullComputer.cpp \
     libraries/bullet3/src/LinearMath/btConvexHull.cpp \
-    libraries/bullet3/src/LinearMath/btAlignedAllocator.cpp
+    libraries/bullet3/src/LinearMath/btAlignedAllocator.cpp \
+    libraries/bullet3/src/LinearMath/btVector3.cpp
 
 HEADERS += \
     libraries/bullet3/src/BulletCollision/BroadphaseCollision/btSimpleBroadphase.h \
@@ -409,3 +396,32 @@ HEADERS += \
     libraries/bullet3/src/LinearMath/btAlignedObjectArray.h \
     libraries/bullet3/src/LinearMath/btAlignedAllocator.h \
     libraries/bullet3/src/LinearMath/btAabbUtil2.h
+
+defineTest(copyToDestdir) {
+    files = $$1
+    for(FILE, files) {
+        CONFIG(debug, debug|release) {
+            DDIR = $${OUT_PWD}/debug
+        } else {
+            DDIR = $${OUT_PWD}/release
+        }
+
+        # Replace slashes in paths with backslashes for Windows
+        win32:FILE ~= s,/,\\,g
+        win32:DDIR ~= s,/,\\,g
+        QMAKE_POST_LINK += $$QMAKE_COPY $$quote($$FILE) $$quote($$DDIR) $$escape_expand(\\n\\t)
+    }
+    export(QMAKE_POST_LINK)
+}
+
+win32 {
+    contains(QT_ARCH, i386) {
+        message("32 bit build")
+            LIBS += -L$$PWD/libraries/openvr/lib/win32/ -lopenvr_api
+            copyToDestdir($$PWD/libraries/openvr/bin/win32/openvr_api.dll)
+    } else {
+        message("64 bit build")
+            LIBS += -L$$PWD/libraries/openvr/lib/win64/ -lopenvr_api
+            copyToDestdir($$PWD/libraries/openvr/bin/win64/openvr_api.dll)
+    }
+}

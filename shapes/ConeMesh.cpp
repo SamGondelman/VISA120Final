@@ -65,8 +65,8 @@ namespace {
 
     ConeMeshCallbackBottom bottomGenFunc;
 
-    unsigned int sliceClamp(int slices) { return static_cast<unsigned int>(std::max(slices, 3)); }
-    unsigned int stackClamp(int stacks) { return static_cast<unsigned int>(std::max(stacks, 1)); }
+    unsigned int sliceClamp(int slices) { return static_cast<unsigned int>(std::fmaxf(slices, 3)); }
+    unsigned int stackClamp(int stacks) { return static_cast<unsigned int>(std::fmaxf(stacks, 1)); }
 }
 
 ConeMesh::ConeMesh(int stacks, int slices, float repeatU, float repeatV) :

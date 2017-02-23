@@ -53,7 +53,7 @@ struct cubeMeshCallbackZpos {
 } frontGenFunc;
 
 namespace {
-    unsigned int sideClamp(int side) { return static_cast<unsigned int>(std::max(side, 1)); }
+    unsigned int sideClamp(int side) { return static_cast<unsigned int>(std::fmaxf(side, 1)); }
 }
 
 CubeMesh::CubeMesh(int squaresPerEdge, float repeatU, float repeatV) :

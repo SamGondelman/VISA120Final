@@ -31,6 +31,8 @@
 #include <QKeyEvent>
 #include <iostream>
 
+#include <openvr.h>
+
 float View::m_globalTime = 0.0f;
 float View::m_rockTime = 0.0f;
 std::unique_ptr<Player> View::m_player = nullptr;
@@ -38,10 +40,11 @@ std::unique_ptr<SphereMesh> View::m_sphere = nullptr;
 std::unique_ptr<CubeMesh> View::m_cube = nullptr;
 std::unique_ptr<ConeMesh> View::m_cone = nullptr;
 std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
+unsigned int View::m_fullscreenQuadVAO = 0;
 std::set<int> View::m_pressedKeys = std::set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_leftShield(nullptr), m_rightShield(nullptr),
+    m_fps(0.0f), m_leftShield(nullptr), m_rightShield(nullptr),
     m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
     m_exposure(1.0f), m_useAdaptiveExposure(true)
 {
@@ -60,6 +63,9 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 
 View::~View()
 {
+    // Must remove shields here to ensure entity deletion happens in right order
+    m_worlds[m_world]->getPhysWorld()->removeRigidBody(m_leftShield->m_rigidBody.get());
+    m_worlds[m_world]->getPhysWorld()->removeRigidBody(m_rightShield->m_rigidBody.get());
     glDeleteVertexArrays(1, &m_fullscreenQuadVAO);
 }
 
@@ -440,6 +446,19 @@ void View::paintGL() {
     }
 }
 
+void drawCube(int num) {
+    View::m_cube->draw(num);
+}
+
+void drawFire(int num) {
+    glBindVertexArray(View::m_fullscreenQuadVAO);
+    // Top cap
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 5, num);
+    // Bottom cap
+    glDrawArraysInstanced(GL_TRIANGLE_FAN, 5, 5, num);
+    glBindVertexArray(0);
+}
+
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
@@ -449,21 +468,8 @@ void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
 
     // Bind the deferred buffer to draw the particles
     m_deferredBuffer->bind();
-    m_lightParticles->render(V, P, &drawCube, this);
-    m_fireParticles->render(V, P, &drawFire, this);
-}
-
-void View::drawCube(int num) {
-    m_cube->draw(num);
-}
-
-void View::drawFire(int num) {
-    glBindVertexArray(m_fullscreenQuadVAO);
-    // Top cap
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 5, num);
-    // Bottom cap
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 5, 5, num);
-    glBindVertexArray(0);
+    m_lightParticles->render(V, P, &drawCube);
+    m_fireParticles->render(V, P, &drawFire);
 }
 
 void View::drawRocks(glm::mat4& V, glm::mat4& P) {
@@ -537,7 +543,7 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_F4) m_world = WorldState::WORLD_3;
     else if (event->key() == Qt::Key_F5) m_world = WorldState::WORLD_4;
 
-    if (m_world != prevWorld) switchWorld();
+    if (m_world != prevWorld) switchWorld(prevWorld);
 
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
 }
@@ -592,7 +598,7 @@ void View::tick() {
     update();
 }
 
-void View::switchWorld() {
+void View::switchWorld(WorldState prevWorld) {
     m_worlds[m_world]->makeCurrent();
 
     if (!m_leftShield && !m_rightShield) {
@@ -607,6 +613,8 @@ void View::switchWorld() {
                                                      btCollisionObject::CF_KINEMATIC_OBJECT);
         m_leftShield->m_rigidBody->setActivationState(DISABLE_DEACTIVATION);
     } else {
+        m_worlds[prevWorld]->getPhysWorld()->removeRigidBody(m_leftShield->m_rigidBody.get());
+        m_worlds[prevWorld]->getPhysWorld()->removeRigidBody(m_rightShield->m_rigidBody.get());
         m_worlds[m_world]->getPhysWorld()->addRigidBody(m_leftShield->m_rigidBody.get());
         m_worlds[m_world]->getPhysWorld()->addRigidBody(m_rightShield->m_rigidBody.get());
     }

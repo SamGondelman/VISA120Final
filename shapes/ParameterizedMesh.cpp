@@ -15,14 +15,14 @@ void ParameterizedMesh::buildVAO() {
     const int numberOfFloats = 8 * numVertices;
     std::vector<GLfloat> vertexData;
     vertexData.reserve(numberOfFloats);
-    addTriangles(&vertexData[0]);
+    addTriangles(vertexData.data());
 
     std::vector<VBOAttribMarker> markers;
     markers.push_back(VBOAttribMarker(ShaderAttrib::POSITION, 3, 0));
     markers.push_back(VBOAttribMarker(ShaderAttrib::NORMAL, 3, 3*sizeof(float)));
     markers.push_back(VBOAttribMarker(ShaderAttrib::TEXCOORD0, 2, (3+3)*sizeof(float)));
 
-    VBO vbo = VBO(&vertexData[0], numberOfFloats, markers);
+    VBO vbo = VBO(vertexData.data(), numberOfFloats, markers);
     m_VAO = std::make_unique<VAO>(vbo, numVertices);
 
 }

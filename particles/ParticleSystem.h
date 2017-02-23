@@ -7,6 +7,8 @@
 #include <GL/gl.h>
 #include "glm/glm.hpp"
 
+#include <string>
+
 class View;
 class FBO;
 class CS123Shader;
@@ -18,7 +20,7 @@ public:
                    int numColorAttachments = 2);
 
     void update(float dt, bool active = true);
-    void render(glm::mat4 &V, glm::mat4 &P, void(View::*drawFunc)(int), View *view);
+    void render(glm::mat4 &V, glm::mat4 &P, void(*drawFunc)(int));
 
 private:
     std::unique_ptr<CS123Shader> m_updateProgram;

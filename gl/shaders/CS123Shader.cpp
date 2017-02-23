@@ -15,17 +15,6 @@ CS123Shader::CS123Shader(const std::string &vertexSource, const std::string &geo
 {
 }
 
-glm::vec3 toGLMVec3(const CS123SceneColor &c) {
-    return glm::vec3(c.r, c.g, c.b);
-}
-
-void CS123Shader::applyMaterial(const CS123SceneMaterial &material) {
-    setUniform("ambient_color", toGLMVec3(material.cAmbient));
-    setUniform("diffuse_color", toGLMVec3(material.cDiffuse));
-    setUniform("specular_color", toGLMVec3(material.cSpecular));
-    setUniform("shininess", material.shininess);
-}
-
 void CS123Shader::setLight(const CS123SceneLightData &light) {
     bool ignoreLight = false;
 

@@ -2,11 +2,13 @@
 
 #include "gl/datatype/VBOAttribMarker.h"
 
+#include "math.h"
+
 // This will count up the total size of each vertex, based on the maximum offset + numElements
 unsigned int calculateFloatsPerVertex(const std::vector<VBOAttribMarker> &markers) {
     unsigned int max = 0;
     for (auto it = markers.begin(); it!= markers.end(); it++) {
-        max = std::max(max, static_cast<unsigned int>(it->numElements + it->offset / sizeof(GLfloat)));
+        max = std::fmaxf(max, static_cast<unsigned int>(it->numElements + it->offset / sizeof(GLfloat)));
     }
     return max;
 }

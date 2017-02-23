@@ -49,7 +49,7 @@ void ParticleSystem::update(float dt, bool active) {
     m_updateProgram->unbind();
 }
 
-void ParticleSystem::render(glm::mat4& V, glm::mat4& P, void(View::*drawFunc)(int), View* view) {
+void ParticleSystem::render(glm::mat4& V, glm::mat4& P, void(*drawFunc)(int)) {
     auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
 
     // Draw particles
@@ -63,7 +63,7 @@ void ParticleSystem::render(glm::mat4& V, glm::mat4& P, void(View::*drawFunc)(in
     m_drawProgram->setUniform("P", P);
 
     // drawFunc is in charge of drawing particle vertices
-    (view->*drawFunc)(m_numParticles);
+    drawFunc(m_numParticles);
 
     m_firstPass = false;
     m_evenPass = !m_evenPass;
