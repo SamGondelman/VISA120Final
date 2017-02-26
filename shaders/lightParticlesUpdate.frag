@@ -1,6 +1,7 @@
 #version 400 core
 
 uniform float active;
+uniform float dt;
 uniform float firstPass;
 uniform sampler2D prevPos;
 uniform sampler2D prevVel;
@@ -12,7 +13,6 @@ layout(location = 0) out vec4 pos;
 layout(location = 1) out vec4 vel;
 
 const float PI = 3.14159;
-const float dt = 0.0167; // 1 sec/60 fps
 
 /*
     A particle has the following properties:

@@ -48,6 +48,11 @@ enum WorldState {
     WORLD_4
 };
 
+enum Hand {
+    LEFT = 0,
+    RIGHT
+};
+
 class View : public QGLWidget {
     Q_OBJECT
 
@@ -58,7 +63,6 @@ public:
     void switchWorld(WorldState prevWorld = WorldState::WORLD_DEMO);
 
     static float m_globalTime;
-    static float m_rockTime;                    // FOR TESTING ONLY
     static std::unique_ptr<Player> m_player;
 
     // Shapes
@@ -74,14 +78,19 @@ private:
     QTime m_time;
     QTimer m_timer;
 
+    float m_dt;
     float m_fps;
     QTimer m_FPStimer;
 
     std::vector<std::shared_ptr<World>> m_worlds;
 
     // Element effects
-    std::shared_ptr<ParticleSystem> m_lightParticles;
-    std::shared_ptr<ParticleSystem> m_fireParticles;
+    std::shared_ptr<ParticleSystem> m_lightParticlesLeft;
+    std::shared_ptr<ParticleSystem> m_lightParticlesRight;
+    std::shared_ptr<ParticleSystem> m_fireParticlesLeft;
+    std::shared_ptr<ParticleSystem> m_fireParticlesRight;
+    float m_rockTimeLeft;
+    float m_rockTimeRight;
     std::unique_ptr<Texture2D> m_shieldMap;
     std::unique_ptr<Entity> m_leftShield;
     std::unique_ptr<Entity> m_rightShield;
@@ -119,6 +128,7 @@ private:
     std::unique_ptr<SphereMesh> m_lightSphere;
     std::unique_ptr<FullScreenQuad> m_fullscreenQuad;
 
+    void drawHands(glm::mat4& V, glm::mat4& P);
     void drawParticles(float dt, glm::mat4& V, glm::mat4& P);
     void drawRocks(glm::mat4& V, glm::mat4& P);
     void drawDistortionObjects();
@@ -145,7 +155,7 @@ private:
     std::shared_ptr<FBO> m_rightEyeBuffer;
 
     vr::TrackedDevicePose_t m_trackedDevicePose[vr::k_unMaxTrackedDeviceCount];
-    glm::mat4 m_matrixDevicePose[vr::k_unMaxTrackedDeviceCount];
+    vr::TrackedDevicePose_t m_trackedHandPoses[2];
 
     glm::mat4 m_leftProjection, m_leftPose;
     glm::mat4 m_rightProjection, m_rightPose;

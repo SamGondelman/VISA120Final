@@ -37,6 +37,7 @@ void ParticleSystem::update(float dt, bool active) {
 
     // Setup update uniforms
     m_updateProgram->setUniform("active", active ? 1.0f : 0.0f);
+    m_updateProgram->setUniform("dt", dt);
     m_updateProgram->setUniform("firstPass", firstPass);
     m_updateProgram->setUniform("numParticles", m_numParticles);
     m_updateProgram->setTexture("prevPos", prevFBO->getColorAttachment(0));

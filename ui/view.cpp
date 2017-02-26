@@ -34,7 +34,6 @@
 #include <iostream>
 
 float View::m_globalTime = 0.0f;
-float View::m_rockTime = 0.0f;
 std::unique_ptr<Player> View::m_player = nullptr;
 std::unique_ptr<SphereMesh> View::m_sphere = nullptr;
 std::unique_ptr<CubeMesh> View::m_cube = nullptr;
@@ -44,7 +43,8 @@ unsigned int View::m_fullscreenQuadVAO = 0;
 std::set<int> View::m_pressedKeys = std::set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_fps(0.0f), m_leftShield(nullptr), m_rightShield(nullptr),
+    m_fps(0.0f), m_rockTimeLeft(0.0f), m_rockTimeRight(0.0f),
+    m_leftShield(nullptr), m_rightShield(nullptr),
     m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
     m_exposure(1.0f), m_useAdaptiveExposure(true)
 {
@@ -134,14 +134,22 @@ void View::initializeGL() {
     // Player setup
     m_player = std::make_unique<Player>(m_eyeWidth, m_eyeHeight);
 
-    m_lightParticles = std::make_shared<ParticleSystem>(5000,
-                                                        ":/shaders/lightParticlesDraw.frag",
-                                                        ":/shaders/lightParticlesDraw.vert",
-                                                        ":/shaders/lightParticlesUpdate.frag");
-    m_fireParticles = std::make_shared<ParticleSystem>(1000,
-                                                       ":/shaders/fireParticlesDraw.frag",
-                                                       ":/shaders/fireParticlesDraw.vert",
-                                                       ":/shaders/fireParticlesUpdate.frag");
+    m_lightParticlesLeft = std::make_shared<ParticleSystem>(5000,
+                                                            ":/shaders/lightParticlesDraw.frag",
+                                                            ":/shaders/lightParticlesDraw.vert",
+                                                            ":/shaders/lightParticlesUpdate.frag");
+    m_lightParticlesRight = std::make_shared<ParticleSystem>(5000,
+                                                             ":/shaders/lightParticlesDraw.frag",
+                                                             ":/shaders/lightParticlesDraw.vert",
+                                                             ":/shaders/lightParticlesUpdate.frag");
+    m_fireParticlesLeft = std::make_shared<ParticleSystem>(1000,
+                                                           ":/shaders/fireParticlesDraw.frag",
+                                                           ":/shaders/fireParticlesDraw.vert",
+                                                           ":/shaders/fireParticlesUpdate.frag");
+    m_fireParticlesRight = std::make_shared<ParticleSystem>(1000,
+                                                            ":/shaders/fireParticlesDraw.frag",
+                                                            ":/shaders/fireParticlesDraw.vert",
+                                                            ":/shaders/fireParticlesUpdate.frag");
 
     QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
     m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
@@ -163,35 +171,6 @@ void View::initializeGL() {
     switchWorld();
 
     initVR();
-}
-
-void View::initVR() {
-    vr::EVRInitError error = vr::VRInitError_None;
-    m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
-
-    if (error != vr::VRInitError_None) {
-        m_hmd = nullptr;
-        QString message = vr::VR_GetVRInitErrorAsEnglishDescription(error);
-        qCritical() << message;
-        QMessageBox::critical(this, "Unable to init VR", message);
-        return;
-    }
-
-    // get eye matrices
-    m_rightProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Right, m_player->getNear(), m_player->getFar()));
-    m_rightPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Right)));
-
-    m_leftProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Left, m_player->getNear(), m_player->getFar()));
-    m_leftPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Left)));
-
-    // setup frame buffers for eyes
-    m_hmd->GetRecommendedRenderTargetSize(&m_eyeWidth, &m_eyeHeight);
-
-    if (!vr::VRCompositor()) {
-        QString message = "Compositor initialization failed. See log file for details";
-        qCritical() << message;
-        QMessageBox::critical(this, "Unable to init VR", message);
-    }
 
     m_player->setAspectRatio(m_eyeWidth, m_eyeHeight);
 
@@ -222,6 +201,35 @@ void View::initVR() {
                                           TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                           TextureParameters::FILTER_METHOD::LINEAR,
                                           GL_FLOAT);
+}
+
+void View::initVR() {
+    vr::EVRInitError error = vr::VRInitError_None;
+    m_hmd = vr::VR_Init(&error, vr::VRApplication_Scene);
+
+    if (error != vr::VRInitError_None) {
+        m_hmd = nullptr;
+        QString message = vr::VR_GetVRInitErrorAsEnglishDescription(error);
+        qCritical() << message;
+        QMessageBox::critical(this, "Unable to init VR", message);
+        return;
+    }
+
+    // get eye matrices
+    m_rightProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Right, m_player->getNear(), m_player->getFar()));
+    m_rightPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Right)));
+
+    m_leftProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Left, m_player->getNear(), m_player->getFar()));
+    m_leftPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Left)));
+
+    // setup frame buffers for eyes
+    m_hmd->GetRecommendedRenderTargetSize(&m_eyeWidth, &m_eyeHeight);
+
+    if (!vr::VRCompositor()) {
+        QString message = "Compositor initialization failed. See log file for details";
+        qCritical() << message;
+        QMessageBox::critical(this, "Unable to init VR", message);
+    }
 
     // VR buffers
     m_leftEyeBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth, m_eyeHeight,
@@ -232,6 +240,10 @@ void View::initVR() {
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_UNSIGNED_BYTE);
+
+    // Make sure hands are disabled initially
+    m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected = false;
+    m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected = false;
 }
 
 void View::resizeGL(int w, int h) {
@@ -266,7 +278,8 @@ void View::renderEye(vr::EVREye eye) {
 
     if (m_drawMode != DrawMode::LIGHTS) {
         m_worlds[m_world]->drawGeometry();
-        drawParticles(0, V, P);
+        drawHands(V, P);
+        drawParticles(m_dt, V, P);
         drawRocks(V, P);
     } else {
         // Draw point lights as geometry
@@ -499,6 +512,30 @@ void View::renderEye(vr::EVREye eye) {
     }
 }
 
+void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
+    auto program = m_worlds[WorldState::WORLD_DEMO]->getWorldProgram();
+    program->bind();
+
+    CS123SceneMaterial mat;
+    mat.cAmbient = glm::vec4(0.25, 0.25, 0.25, 1);
+    mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
+    mat.cSpecular = glm::vec4(0.5, 0.5, 0.5, 1);
+    mat.shininess = 10.0;
+    program->applyMaterial(mat);
+
+    if (m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
+        program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1)));
+        m_cone->draw();
+    }
+
+    if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
+        program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1)));
+        m_cone->draw();
+    }
+
+    program->unbind();
+}
+
 void drawCube(int num) {
     View::m_cube->draw(num);
 }
@@ -515,14 +552,18 @@ void drawFire(int num) {
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
-    m_lightParticles->update(dt, m_pressedKeys.find(Qt::Key_U) != m_pressedKeys.end());
-    m_fireParticles->update(dt, m_pressedKeys.find(Qt::Key_I) != m_pressedKeys.end());
+    m_lightParticlesLeft->update(dt, m_pressedKeys.find(Qt::Key_U) != m_pressedKeys.end());
+    m_lightParticlesRight->update(dt, m_pressedKeys.find(Qt::Key_U) != m_pressedKeys.end());
+    m_fireParticlesLeft->update(dt, m_pressedKeys.find(Qt::Key_I) != m_pressedKeys.end());
+    m_fireParticlesRight->update(dt, m_pressedKeys.find(Qt::Key_I) != m_pressedKeys.end());
     glBindVertexArray(0);
 
     // Bind the deferred buffer to draw the particles
     m_deferredBuffer->bind();
-    m_lightParticles->render(V, P, &drawCube);
-    m_fireParticles->render(V, P, &drawFire);
+    m_lightParticlesLeft->render(V, P, &drawCube);
+    m_lightParticlesRight->render(V, P, &drawCube);
+    m_fireParticlesLeft->render(V, P, &drawFire);
+    m_fireParticlesRight->render(V, P, &drawFire);
 }
 
 void View::drawRocks(glm::mat4& V, glm::mat4& P) {
@@ -530,9 +571,9 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
     m_rockProgram->bind();
     m_rockProgram->setUniform("V", V);
     m_rockProgram->setUniform("P", P);
-    m_rockProgram->setUniform("time", m_rockTime);
+    m_rockProgram->setUniform("time", m_rockTimeLeft);
 
-    if (m_rockTime > 0.0f) {
+    if (m_rockTimeLeft > 0.0f) {
         glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
                 glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
                 glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
@@ -611,13 +652,13 @@ void View::updatePoses() {
     vr::VRCompositor()->WaitGetPoses(m_trackedDevicePose, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
 
     for (unsigned int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
-        if (m_trackedDevicePose[i].bPoseIsValid) {
-            m_matrixDevicePose[i] = vrMatrixToQt(m_trackedDevicePose[i].mDeviceToAbsoluteTracking);
+        if (i == vr::k_unTrackedDeviceIndex_Hmd && m_trackedDevicePose[i].bPoseIsValid) {
+            m_hmdPose = glm::inverse(vrMatrixToQt(m_trackedDevicePose[i].mDeviceToAbsoluteTracking));
+        } else if (m_hmd->GetControllerRoleForTrackedDeviceIndex(i) == vr::TrackedControllerRole_LeftHand ||
+                   m_hmd->GetControllerRoleForTrackedDeviceIndex(i) == vr::TrackedControllerRole_RightHand) {
+            int hand = m_hmd->GetControllerRoleForTrackedDeviceIndex(i) == vr::TrackedControllerRole_LeftHand ? Hand::LEFT : Hand::RIGHT;
+            m_trackedHandPoses[hand] = m_trackedDevicePose[i];
         }
-    }
-
-    if (m_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
-        m_hmdPose = glm::inverse(m_matrixDevicePose[vr::k_unTrackedDeviceIndex_Hmd]);
     }
 }
 
@@ -651,10 +692,10 @@ void View::updateInputs() {
 
 void View::tick() {
     // Get the number of seconds since the last tick (variable update rate)
-    float dt = m_time.restart() * 0.001f;
-    if (dt != 0.0f) m_fps = 0.02f / dt + 0.98f * m_fps;
+    m_dt = m_time.restart() * 0.001f;
+    if (m_dt != 0.0f) m_fps = 0.02f / m_dt + 0.98f * m_fps;
 
-    m_globalTime += dt;
+    m_globalTime += m_dt;
 
     // VR updates
     updatePoses();
@@ -662,9 +703,9 @@ void View::tick() {
 
     // Rock spawning
     if (m_pressedKeys.find(Qt::Key_O) != m_pressedKeys.end()) {
-        m_rockTime += dt;
-        m_rockTime = std::min(1.75f, m_rockTime);
-        if (m_rockTime == 1.75f) {
+        m_rockTimeLeft += m_dt;
+        m_rockTimeLeft = std::min(1.75f, m_rockTimeLeft);
+        if (m_rockTimeLeft == 1.75f) {
             CS123SceneMaterial mat;
             mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
             mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
@@ -678,11 +719,11 @@ void View::tick() {
                                                           ShapeType::CONE, 1.0f, btVector3(0.75, 0, 0.0),
                                                           btVector3(0.5, 1.0, 0.5), mat, btQuaternion(0, 0, -M_PI/2.0f),
                                                           btVector3(20, 0, 0));
-            m_rockTime = 0.0f;
+            m_rockTimeLeft = 0.0f;
             m_pressedKeys.erase(Qt::Key_O);
         }
     } else {
-        m_rockTime = std::max(0.0f, m_rockTime - 5 * dt);
+        m_rockTimeLeft = std::max(0.0f, m_rockTimeLeft - 5 * m_dt);
     }
 
     // Shield movement
@@ -693,7 +734,7 @@ void View::tick() {
     m_leftShield->m_rigidBody->setWorldTransform(t);
     m_leftShield->m_rigidBody->getMotionState()->setWorldTransform(t);
 
-    m_worlds[m_world]->update(dt);
+    m_worlds[m_world]->update(m_dt);
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
     update();
