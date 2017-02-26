@@ -74,8 +74,7 @@ void View::initializeGL() {
     ResourceLoader::initializeGlew();
 
     m_time.start();
-    // TODO: change to / 90
-    m_timer.start(1000 / 60);
+    m_timer.start(1000 / 90);
 
     m_FPStimer.start(1000);
 
@@ -133,7 +132,7 @@ void View::initializeGL() {
     m_bloomProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
     // Player setup
-    m_player = std::make_unique<Player>(m_width, m_height);
+    m_player = std::make_unique<Player>(m_eyeWidth, m_eyeHeight);
 
     m_lightParticles = std::make_shared<ParticleSystem>(5000,
                                                         ":/shaders/lightParticlesDraw.frag",
@@ -188,79 +187,81 @@ void View::initVR() {
     // setup frame buffers for eyes
     m_hmd->GetRecommendedRenderTargetSize(&m_eyeWidth, &m_eyeHeight);
 
-//    QOpenGLFramebufferObjectFormat buffFormat;
-//    buffFormat.setAttachment(QOpenGLFramebufferObject::Depth);
-//    buffFormat.setInternalTextureFormat(GL_RGBA8);
-//    buffFormat.setSamples(4);
-
-//    m_leftBuffer = new QOpenGLFramebufferObject(m_eyeWidth, m_eyeHeight, buffFormat);
-//    m_rightBuffer = new QOpenGLFramebufferObject(m_eyeWidth, m_eyeHeight, buffFormat);
-
-//    QOpenGLFramebufferObjectFormat resolveFormat;
-//    resolveFormat.setInternalTextureFormat(GL_RGBA8);
-//    buffFormat.setSamples(0);
-
-//    m_resolveBuffer = new QOpenGLFramebufferObject(m_eyeWidth*2, m_eyeHeight, resolveFormat);
-
     if (!vr::VRCompositor()) {
         QString message = "Compositor initialization failed. See log file for details";
         qCritical() << message;
         QMessageBox::critical(this, "Unable to init VR", message);
     }
-}
 
-void View::resizeGL(int w, int h) {
-    m_width = w;
-    m_height = h;
-//    float ratio = static_cast<QGuiApplication *>(QCoreApplication::instance())->devicePixelRatio();
-    //w = static_cast<int>(w / ratio);
-    //h = static_cast<int>(h / ratio);
-    glViewport(0, 0, w, h);
+    m_player->setAspectRatio(m_eyeWidth, m_eyeHeight);
 
-    m_player->setAspectRatio(w, h);
-
-    // Resize buffers
+    // Initialize screen buffers
     // contains view space positions/normals and ambient/diffuse/specular colors
     // reused for distortion objects to take advantage of depth buffer
-    m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, w, h,
+    m_deferredBuffer = std::make_unique<FBO>(5, FBO::DEPTH_STENCIL_ATTACHMENT::DEPTH_ONLY, m_eyeWidth, m_eyeHeight,
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_FLOAT);
     // collects lighting, contains whole scene minus distortion objects
-    m_lightingBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w, h,
+    m_lightingBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth, m_eyeHeight,
                                              TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                              TextureParameters::FILTER_METHOD::LINEAR,
                                              GL_FLOAT);
     // contains whole scene + distortion objects
-    m_distortionBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w, h,
+    m_distortionBuffer = std::make_unique<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth, m_eyeHeight,
                                                TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                                TextureParameters::FILTER_METHOD::LINEAR,
                                                GL_FLOAT);
 
     // half-sized buffers for collecting/blurring bright areas
-    m_vblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
+    m_vblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth/2, m_eyeHeight/2,
                                           TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                           TextureParameters::FILTER_METHOD::LINEAR,
                                           GL_FLOAT);
-    m_hblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, w/2, h/2,
+    m_hblurBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth/2, m_eyeHeight/2,
                                           TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                           TextureParameters::FILTER_METHOD::LINEAR,
                                           GL_FLOAT);
+
+    // VR buffers
+    m_leftEyeBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth, m_eyeHeight,
+                                            TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                            TextureParameters::FILTER_METHOD::LINEAR,
+                                            GL_UNSIGNED_BYTE);
+    m_rightEyeBuffer = std::make_shared<FBO>(1, FBO::DEPTH_STENCIL_ATTACHMENT::NONE, m_eyeWidth, m_eyeHeight,
+                                             TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
+                                             TextureParameters::FILTER_METHOD::LINEAR,
+                                             GL_UNSIGNED_BYTE);
+}
+
+void View::resizeGL(int w, int h) {
+
 }
 
 void View::paintGL() {
+    renderEye(vr::Eye_Left);
+    renderEye(vr::Eye_Right);
+
+    vr::Texture_t left = { (void*)m_leftEyeBuffer->getColorAttachment(0).id(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+    vr::Texture_t right = { (void*)m_rightEyeBuffer->getColorAttachment(0).id(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
+    vr::VRCompositor()->Submit(vr::Eye_Left, &left);
+    vr::VRCompositor()->Submit(vr::Eye_Right, &right);
+}
+
+void View::renderEye(vr::EVREye eye) {
     // Draw to deferred buffer
     glDisable(GL_BLEND);
 
+    auto eyeBuffer = eye == vr::Eye_Left ? m_leftEyeBuffer : m_rightEyeBuffer;
     auto worldProgram = m_worlds[m_world]->getWorldProgram();
 
     worldProgram->bind();
     m_deferredBuffer->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glm::mat4 V = m_player->getView();
+    glm::mat4 V = (eye == vr::Eye_Right ? m_leftPose : m_rightPose) * m_hmdPose;
     worldProgram->setUniform("V", V);
-    glm::mat4 P = m_player->getPerspective();
+    glm::mat4 P = eye == vr::Eye_Left ? m_leftProjection : m_rightProjection;
     worldProgram->setUniform("P", P);
 
     if (m_drawMode != DrawMode::LIGHTS) {
@@ -289,10 +290,10 @@ void View::paintGL() {
             m_drawMode == DrawMode::LIGHTS) {
         // No lighting
         glBindFramebuffer(GL_READ_FRAMEBUFFER, m_deferredBuffer->getId());
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, eyeBuffer->getId());
         int offset = m_drawMode != DrawMode::LIGHTS ? m_drawMode : DrawMode::AMBIENT;
         glReadBuffer(GL_COLOR_ATTACHMENT0 + offset);
-        glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+        glBlitFramebuffer(0, 0, m_eyeWidth, m_eyeHeight, 0, 0, m_eyeWidth, m_eyeHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     } else {
         // Lighting
         m_lightingProgram->bind();
@@ -308,13 +309,13 @@ void View::paintGL() {
             glBindFramebuffer(GL_READ_FRAMEBUFFER, m_deferredBuffer->getId());
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_lightingBuffer->getId());
             glReadBuffer(GL_COLOR_ATTACHMENT0 + DrawMode::AMBIENT);
-            glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            glBlitFramebuffer(0, 0, m_eyeWidth, m_eyeHeight, 0, 0, m_eyeWidth, m_eyeHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         }
 
         // Diffuse and/or specular terms
         m_lightingProgram->setUniform("useDiffuse",(useLighting || m_drawMode == DrawMode::DIFFUSE) ? 1.0f : 0.0f);
         m_lightingProgram->setUniform("useSpecular", (useLighting || m_drawMode == DrawMode::SPECULAR) ? 1.0f : 0.0f);
-        m_lightingProgram->setUniform("screenSize", glm::vec2(m_width, m_height));
+        m_lightingProgram->setUniform("screenSize", glm::vec2(m_eyeWidth, m_eyeHeight));
         m_lightingProgram->setUniform("V", V);
         m_lightingProgram->setUniform("P", P);
 
@@ -359,9 +360,9 @@ void View::paintGL() {
         if (m_drawMode == DrawMode::DIFFUSE || m_drawMode == DrawMode::SPECULAR || m_drawMode == DrawMode::NO_HDR) {
             // For debugging, draw lighting buffer before HDR/bloom
             glBindFramebuffer(GL_READ_FRAMEBUFFER, m_lightingBuffer->getId());
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, eyeBuffer->getId());
             glReadBuffer(GL_COLOR_ATTACHMENT0);
-            glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            glBlitFramebuffer(0, 0, m_eyeWidth, m_eyeHeight, 0, 0, m_eyeWidth, m_eyeHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         } else {
             if (m_drawMode != DrawMode::NO_DISTORTION) {
                 // Distortion objects
@@ -390,7 +391,7 @@ void View::paintGL() {
                 glBindFramebuffer(GL_READ_FRAMEBUFFER, m_lightingBuffer->getId());
                 glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_distortionBuffer->getId());
                 glReadBuffer(GL_COLOR_ATTACHMENT0);
-                glBlitFramebuffer(0, 0, m_width, m_height, 0, 0, m_width, m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+                glBlitFramebuffer(0, 0, m_eyeWidth, m_eyeHeight, 0, 0, m_eyeWidth, m_eyeHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
             }
 
             // HDR/bloom
@@ -411,7 +412,8 @@ void View::paintGL() {
             if (m_drawMode == DrawMode::BRIGHT) {
                 // Draw bright areas (already downscaled/upscaled but not blurred)
                 m_textureProgram->bind();
-                glViewport(0, 0, m_width, m_height);
+                eyeBuffer->bind();
+                glViewport(0, 0, m_eyeWidth, m_eyeHeight);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                 m_textureProgram->setTexture("tex", m_vblurBuffer->getColorAttachment(0));
 
@@ -419,6 +421,7 @@ void View::paintGL() {
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 glBindVertexArray(0);
 
+                eyeBuffer->unbind();
                 m_textureProgram->unbind();
             } else {
                 // Blur bright areas
@@ -447,7 +450,8 @@ void View::paintGL() {
                 if (m_drawMode == DrawMode::BRIGHT_BLUR) {
                     // Draw blurred bright areas
                     m_textureProgram->bind();
-                    glViewport(0, 0, m_width, m_height);
+                    eyeBuffer->bind();
+                    glViewport(0, 0, m_eyeWidth, m_eyeHeight);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                     m_textureProgram->setTexture("tex", m_vblurBuffer->getColorAttachment(0));
 
@@ -455,13 +459,14 @@ void View::paintGL() {
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                     glBindVertexArray(0);
 
+                    eyeBuffer->unbind();
                     m_textureProgram->unbind();
                 } else {
                     // Calculate adaptive exposure
                     if (m_useAdaptiveExposure) {
                         m_distortionBuffer->getColorAttachment(0).bind();
                         glGenerateMipmap(GL_TEXTURE_2D);
-                        int highestMipMapLevel = std::floor(std::log2(std::max(m_width, m_height)));
+                        int highestMipMapLevel = std::floor(std::log2(std::max(m_eyeWidth, m_eyeHeight)));
                         float averageLuminance;
                         glGetTexImage(GL_TEXTURE_2D, highestMipMapLevel, GL_RGBA, GL_FLOAT, &averageLuminance);
                         m_distortionBuffer->getColorAttachment(0).unbind();
@@ -475,7 +480,8 @@ void View::paintGL() {
 
                     // Recombine bloom, tonemapping
                     m_bloomProgram->bind();
-                    glViewport(0, 0, m_width, m_height);
+                    eyeBuffer->bind();
+                    glViewport(0, 0, m_eyeWidth, m_eyeHeight);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                     m_bloomProgram->setTexture("color", m_distortionBuffer->getColorAttachment(0));
                     m_bloomProgram->setTexture("bloom", m_vblurBuffer->getColorAttachment(0));
@@ -485,6 +491,7 @@ void View::paintGL() {
                     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                     glBindVertexArray(0);
 
+                    eyeBuffer->unbind();
                     m_bloomProgram->unbind();
                 }
             }
