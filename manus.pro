@@ -97,7 +97,7 @@ DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL
 DEFINES += GLM_SWIZZLE GLM_FORCE_RADIANS
 OTHER_FILES += \
-    images/*
+    images/* \
     shaders/*
 
 RESOURCES += \
