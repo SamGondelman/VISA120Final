@@ -8,6 +8,8 @@
 #include "glm/glm.hpp"
 
 #include <string>
+#include <vector>
+#include <QPair>
 
 class View;
 class FBO;
@@ -20,6 +22,7 @@ public:
                    int numColorAttachments = 2);
 
     void update(float dt, bool active = true);
+    void update(float dt, std::vector<QPair<std::string, glm::vec3>> &args, bool active = true);
     void render(glm::mat4 &V, glm::mat4 &P, void(*drawFunc)(int));
 
 private:

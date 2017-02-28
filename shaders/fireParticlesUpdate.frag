@@ -1,5 +1,8 @@
 #version 400 core
 
+uniform vec3 handPos;
+uniform vec3 handDir;
+
 uniform float active;
 uniform float dt;
 uniform float firstPass;
@@ -37,18 +40,19 @@ float calculateLifetime(int index) {
 }
 
 vec4 initPosition(int index) {
-    float theta = 2.0 * PI * hash(index * 872.0238);
-    float phi = PI * hash(index * 1912.124);
-    const float MAX_OFFSET = 0.1;
-    float offsetMag = MAX_OFFSET * hash(index * 98723.345);
-    float sinPhi = sin(phi);
-    return vec4(spawn + offsetMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi)),
-                calculateLifetime(index));
+    return vec4(handPos, calculateLifetime(index));
+//    float theta = 2.0 * PI * hash(index * 872.0238);
+//    float phi = PI * hash(index * 1912.124);
+//    const float MAX_OFFSET = 0.1;
+//    float offsetMag = MAX_OFFSET * hash(index * 98723.345);
+//    float sinPhi = sin(phi);
+//    return vec4(spawn + offsetMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi)),
+//                calculateLifetime(index));
 }
 
 vec4 initVelocity(int index) {
     const float VEL_MAG = 3.0;
-    return vec4(VEL_MAG * dir, -calculateLifetime(index));
+    return vec4(VEL_MAG * handDir, -calculateLifetime(index));
 }
 
 vec4 updatePosition(int index, vec4 pos, vec4 vel) {
@@ -62,8 +66,8 @@ vec4 updateVelocity(int index, vec4 pos, vec4 vel) {
     if (vel.w < 0) {
         return vel + vec4(0, 0, 0, dt);
     }
-    vec3 a = (pos.xyz - spawn);
-    vec3 a1 = dot(a, dir) * dir;
+    vec3 a = (pos.xyz - handPos);
+    vec3 a1 = dot(a, handDir) * handDir;
     float RAD_MAG = 20.0 * hash(index * 2935.0233);
     vec3 radial = a - a1;
 

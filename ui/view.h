@@ -6,7 +6,8 @@
 #include <QTime>
 #include <QTimer>
 #include <memory>
-#include <set>
+#include <unordered_set>
+#include <unordered_map>
 
 #include "glm/glm.hpp"
 
@@ -53,6 +54,28 @@ enum Hand {
     RIGHT
 };
 
+enum ViveButton {
+    LEFT_MENU = 0,
+    LEFT_GRIP,
+    LEFT_TOUCHPAD,
+    LEFT_TOUCHPAD_TOUCH,
+
+    RIGHT_MENU,
+    RIGHT_GRIP,
+    RIGHT_TOUCHPAD,
+    RIGHT_TOUCHPAD_TOUCH,
+};
+
+enum ViveAxis {
+    LEFT_X = 0,
+    LEFT_Y,
+    LEFT_TRIGGER,
+
+    RIGHT_X,
+    RIGHT_Y,
+    RIGHT_TRIGGER,
+};
+
 class View : public QGLWidget {
     Q_OBJECT
 
@@ -72,7 +95,7 @@ public:
     static std::unique_ptr<CylinderMesh> m_cylinder;
     static GLuint m_fullscreenQuadVAO;
 
-    static std::set<int> m_pressedKeys;
+    static std::unordered_set<int> m_pressedKeys;
 
 private:
     QTime m_time;
@@ -128,18 +151,21 @@ private:
     std::unique_ptr<SphereMesh> m_lightSphere;
     std::unique_ptr<FullScreenQuad> m_fullscreenQuad;
 
-    void drawHands(glm::mat4& V, glm::mat4& P);
+    void drawHands(glm::mat4 &V, glm::mat4 &P);
     void drawParticles(float dt, glm::mat4& V, glm::mat4& P);
     void drawRocks(glm::mat4& V, glm::mat4& P);
     void drawDistortionObjects();
 
     void initializeGL();
     void initVR();
-    void updatePoses();
-    void updateInputs();
+    void handleInput(const vr::VRControllerState_t &state, bool isLeftHand);
     void paintGL();
     void renderEye(vr::EVREye eye);
     void resizeGL(int w, int h);
+
+    void updatePoses();
+    void updateInputs();
+    void updateRocks();
 
     void mousePressEvent(QMouseEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
@@ -161,8 +187,8 @@ private:
     glm::mat4 m_rightProjection, m_rightPose;
     glm::mat4 m_hmdPose;
 
-    bool m_inputNext[vr::k_unMaxTrackedDeviceCount];
-    bool m_inputPrev[vr::k_unMaxTrackedDeviceCount];
+    std::unordered_set<ViveButton> _buttonStates;
+    std::unordered_map<ViveAxis, float> _axisStates;
 
     glm::mat4 vrMatrixToQt(const vr::HmdMatrix34_t &mat) {
         return glm::mat4x4(

@@ -26,6 +26,7 @@ ParticleSystem::ParticleSystem(int numParticles, std::string drawFrag, std::stri
                                    TextureParameters::FILTER_METHOD::NEAREST, GL_FLOAT);
 }
 
+// Same as below but without args
 void ParticleSystem::update(float dt, bool active) {
     auto prevFBO = m_evenPass ? m_FBO1 : m_FBO2;
     auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
@@ -36,6 +37,31 @@ void ParticleSystem::update(float dt, bool active) {
     nextFBO->bind();
 
     // Setup update uniforms
+    m_updateProgram->setUniform("active", active ? 1.0f : 0.0f);
+    m_updateProgram->setUniform("dt", dt);
+    m_updateProgram->setUniform("firstPass", firstPass);
+    m_updateProgram->setUniform("numParticles", m_numParticles);
+    m_updateProgram->setTexture("prevPos", prevFBO->getColorAttachment(0));
+    m_updateProgram->setTexture("prevVel", prevFBO->getColorAttachment(1));
+
+    // Draw fullscreen quad
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    nextFBO->unbind();
+    m_updateProgram->unbind();
+}
+
+void ParticleSystem::update(float dt, std::vector<QPair<std::string, glm::vec3>> &args, bool active) {
+    auto prevFBO = m_evenPass ? m_FBO1 : m_FBO2;
+    auto nextFBO = !m_evenPass ? m_FBO1 : m_FBO2;
+    float firstPass = m_firstPass ? 1.0f : 0.0f;
+
+    // Update
+    m_updateProgram->bind();
+    nextFBO->bind();
+
+    // Setup update uniforms
+    for (auto &a : args) m_updateProgram->setUniform(a.first, a.second);
     m_updateProgram->setUniform("active", active ? 1.0f : 0.0f);
     m_updateProgram->setUniform("dt", dt);
     m_updateProgram->setUniform("firstPass", firstPass);

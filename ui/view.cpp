@@ -40,7 +40,7 @@ std::unique_ptr<CubeMesh> View::m_cube = nullptr;
 std::unique_ptr<ConeMesh> View::m_cone = nullptr;
 std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
 unsigned int View::m_fullscreenQuadVAO = 0;
-std::set<int> View::m_pressedKeys = std::set<int>();
+std::unordered_set<int> View::m_pressedKeys = std::unordered_set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_fps(0.0f), m_rockTimeLeft(0.0f), m_rockTimeRight(0.0f),
@@ -515,9 +515,11 @@ void View::renderEye(vr::EVREye eye) {
 void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
     auto program = m_worlds[WorldState::WORLD_DEMO]->getWorldProgram();
     program->bind();
+    program->setUniform("V", V);
+    program->setUniform("P", P);
 
     CS123SceneMaterial mat;
-    mat.cAmbient = glm::vec4(0.25, 0.25, 0.25, 1);
+    mat.cAmbient = glm::vec4(0.5, 0, 0, 1);
     mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
     mat.cSpecular = glm::vec4(0.5, 0.5, 0.5, 1);
     mat.shininess = 10.0;
@@ -527,6 +529,12 @@ void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
         program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1)));
         m_cone->draw();
     }
+
+    mat.cAmbient = glm::vec4(0, 0, 0.5, 1);
+    mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
+    mat.cSpecular = glm::vec4(0.5, 0.5, 0.5, 1);
+    mat.shininess = 10.0;
+    program->applyMaterial(mat);
 
     if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
         program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1)));
@@ -550,12 +558,29 @@ void drawFire(int num) {
 }
 
 void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
+    // variable update rate doesn't work?
+    dt = 1.0f/90.0f;
+
     // Bind the fullscreen VAO to update entire particle texture
     glBindVertexArray(m_fullscreenQuadVAO);
-    m_lightParticlesLeft->update(dt, m_pressedKeys.find(Qt::Key_U) != m_pressedKeys.end());
-    m_lightParticlesRight->update(dt, m_pressedKeys.find(Qt::Key_U) != m_pressedKeys.end());
-    m_fireParticlesLeft->update(dt, m_pressedKeys.find(Qt::Key_I) != m_pressedKeys.end());
-    m_fireParticlesRight->update(dt, m_pressedKeys.find(Qt::Key_I) != m_pressedKeys.end());
+
+    // TODO: do this better
+    std::vector<QPair<std::string, glm::vec3>> args(2);
+    if (m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
+        glm::mat4 mat = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
+        args[0] = QPair<std::string, glm::vec3>("handPos", glm::vec3(mat[3]));
+        args[1] = QPair<std::string, glm::vec3>("handDir", glm::normalize(glm::mat3(mat) * glm::vec3(0, 0, -1)));
+    }
+    m_lightParticlesLeft->update(dt, args, _axisStates[LEFT_X] > 0.7f);
+    m_fireParticlesLeft->update(dt, args, _axisStates[LEFT_TRIGGER] >= 1.0f);
+
+    if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
+        glm::mat4 mat = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+        args[0] = QPair<std::string, glm::vec3>("handPos", glm::vec3(mat[3]));
+        args[1] = QPair<std::string, glm::vec3>("handDir", glm::normalize(glm::mat3(mat) * glm::vec3(0, 0, -1)));
+    }
+    m_lightParticlesRight->update(dt, args, _axisStates[RIGHT_X] < -0.7f);
+    m_fireParticlesRight->update(dt, args, _axisStates[RIGHT_TRIGGER] >= 1.0f);
     glBindVertexArray(0);
 
     // Bind the deferred buffer to draw the particles
@@ -571,20 +596,19 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
     m_rockProgram->bind();
     m_rockProgram->setUniform("V", V);
     m_rockProgram->setUniform("P", P);
-    m_rockProgram->setUniform("time", m_rockTimeLeft);
 
-    if (m_rockTimeLeft > 0.0f) {
-        glm::mat4 M = glm::translate(glm::vec3(0.75, 0, 0.0)) *
-                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
-                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
-        m_rockProgram->setUniform("M", M);
-        m_cone->draw();
-
-        M = glm::translate(glm::vec3(-0.75, 0, 0.0)) *
-                glm::rotate(static_cast<float>(M_PI)/2.0f, glm::vec3(0, 0, -1)) *
-                glm::scale(glm::vec3(0.5f, 1.0f, 0.5f));
+    if (m_rockTimeLeft > 0.0f && m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
+        m_rockProgram->setUniform("time", m_rockTimeLeft);
+        glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1));
         m_rockProgram->setUniform("M", M);
         m_sphere->draw();
+    }
+
+    if (m_rockTimeRight > 0.0f && m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
+        m_rockProgram->setUniform("time", m_rockTimeRight);
+        glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1));
+        m_rockProgram->setUniform("M", M);
+        m_cone->draw();
     }
 
     m_rockProgram->unbind();
@@ -651,42 +675,126 @@ void View::keyReleaseEvent(QKeyEvent *event) {
 void View::updatePoses() {
     vr::VRCompositor()->WaitGetPoses(m_trackedDevicePose, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
 
-    for (unsigned int i = 0; i < vr::k_unMaxTrackedDeviceCount; i++) {
-        if (i == vr::k_unTrackedDeviceIndex_Hmd && m_trackedDevicePose[i].bPoseIsValid) {
-            m_hmdPose = glm::inverse(vrMatrixToQt(m_trackedDevicePose[i].mDeviceToAbsoluteTracking));
-        } else if (m_hmd->GetControllerRoleForTrackedDeviceIndex(i) == vr::TrackedControllerRole_LeftHand ||
-                   m_hmd->GetControllerRoleForTrackedDeviceIndex(i) == vr::TrackedControllerRole_RightHand) {
-            int hand = m_hmd->GetControllerRoleForTrackedDeviceIndex(i) == vr::TrackedControllerRole_LeftHand ? Hand::LEFT : Hand::RIGHT;
-            m_trackedHandPoses[hand] = m_trackedDevicePose[i];
-        }
+    if (m_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
+        m_hmdPose = glm::inverse(vrMatrixToQt(m_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking));
+    }
+
+    if (m_hmd->IsTrackedDeviceConnected(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand))) {
+        m_trackedHandPoses[Hand::LEFT] = m_trackedDevicePose[m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand)];
+    }
+    if (m_hmd->IsTrackedDeviceConnected(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand))) {
+        m_trackedHandPoses[Hand::RIGHT] = m_trackedDevicePose[m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand)];
     }
 }
 
 void View::updateInputs() {
-    vr::VREvent_t event;
-    while (m_hmd->PollNextEvent(&event, sizeof(event))) {
-        //ProcessVREvent( event );
+    _buttonStates.clear();
+
+    if (m_hmd->IsTrackedDeviceConnected(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand))) {
+        vr::VRControllerState_t state;
+        if (m_hmd->GetControllerState(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand), &state, sizeof(state))) {
+            handleInput(state, true);
+        }
     }
 
-    for (vr::TrackedDeviceIndex_t i=0; i<vr::k_unMaxTrackedDeviceCount; i++ ) {
+    if (m_hmd->IsTrackedDeviceConnected(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand))) {
         vr::VRControllerState_t state;
-        if (m_hmd->GetControllerState(i, &state, sizeof(state))) {
-//            if (state.ulButtonPressed & vr::ButtonMaskFromId(vr::k_EButton_SteamVR_Touchpad)) {
-//                if (!m_inputNext[i]) {
-//                    m_inputNext[i] = true;
-//                }
-//            } else if (m_inputNext[i]) {
-//                m_inputNext[i] = false;
-//            }
-
-//            if (state.ulButtonPressed & vr::ButtonMaskFromId(vr::k_EButton_Grip)) {
-//                if (!m_inputPrev[i]) {
-//                    m_inputPrev[i] = true;
-//                }
-//            } else if (m_inputPrev[i]) {
-//                m_inputPrev[i] = false;
-//            }
+        if (m_hmd->GetControllerState(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand), &state, sizeof(state))) {
+            handleInput(state, false);
         }
+    }
+}
+
+void View::handleInput(const vr::VRControllerState_t &state, bool isLeftHand) {
+    // Buttons
+    for (uint32_t button = 0; button < vr::k_EButton_Max; button++) {
+        auto mask = vr::ButtonMaskFromId((vr::EVRButtonId)button);
+        bool pressed = 0 != (state.ulButtonPressed & mask);
+        bool touched = 0 != (state.ulButtonTouched & mask);
+        if (pressed) {
+            if (button == vr::k_EButton_ApplicationMenu) {
+                _buttonStates.insert(isLeftHand ? LEFT_MENU : RIGHT_MENU);
+            } else if (button == vr::k_EButton_Grip) {
+                _buttonStates.insert(isLeftHand ? LEFT_GRIP : RIGHT_GRIP);
+            } else if (button == vr::k_EButton_SteamVR_Touchpad) {
+                _buttonStates.insert(isLeftHand ? LEFT_TOUCHPAD : RIGHT_TOUCHPAD);
+            }
+        }
+        if (touched) {
+             if (button == vr::k_EButton_SteamVR_Touchpad) {
+                 _buttonStates.insert(isLeftHand ? LEFT_TOUCHPAD_TOUCH : RIGHT_TOUCHPAD_TOUCH);
+            }
+        }
+    }
+
+    // Axes
+    for (uint32_t i = 0; i < vr::k_unControllerStateAxisCount; i++) {
+        float x = state.rAxis[i].x;
+        float y = state.rAxis[i].y;
+        int axis = i + vr::k_EButton_Axis0;
+
+        if (axis == vr::k_EButton_SteamVR_Touchpad) {
+            _axisStates[isLeftHand ? LEFT_X : RIGHT_X] = x;
+            _axisStates[isLeftHand ? LEFT_Y : RIGHT_Y] = y;
+        } else if (axis == vr::k_EButton_SteamVR_Trigger) {
+            _axisStates[isLeftHand ? LEFT_TRIGGER : RIGHT_TRIGGER] = x;
+        }
+    }
+}
+
+void View::updateRocks() {
+    // Rock spawning
+    const float ROCK_VEL = 20.0f;
+    if (_buttonStates.find(LEFT_GRIP) != _buttonStates.end()) {
+        m_rockTimeLeft += m_dt;
+        m_rockTimeLeft = std::min(1.75f, m_rockTimeLeft);
+        if (m_rockTimeLeft == 1.75f) {
+            CS123SceneMaterial mat;
+            mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
+            mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
+            mat.cSpecular = glm::vec4(0.25f*glm::vec3(0.773, 0.561, 0.419), 1);
+            mat.shininess = 1.0f;
+
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            glm::quat rot = glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0))));
+            glm::vec3 dir = ROCK_VEL * glm::normalize(glm::quat_cast(glm::mat3(M)) * glm::vec3(0, 0, -1));
+
+            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
+                                                          ShapeType::SPHERE, 1.0f, btVector3(pos.x, pos.y, pos.z),
+                                                          btVector3(0.1, 0.25, 0.1), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
+                                                          btVector3(dir.x, dir.y, dir.z));
+            m_rockTimeLeft = 0.0f;
+            _buttonStates.erase(LEFT_GRIP);
+        }
+    } else {
+        m_rockTimeLeft = std::max(0.0f, m_rockTimeLeft - 5 * m_dt);
+    }
+
+    if (_buttonStates.find(RIGHT_GRIP) != _buttonStates.end()) {
+        m_rockTimeRight += m_dt;
+        m_rockTimeRight = std::min(1.75f, m_rockTimeRight);
+        if (m_rockTimeRight == 1.75f) {
+            CS123SceneMaterial mat;
+            mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
+            mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
+            mat.cSpecular = glm::vec4(0.25f*glm::vec3(0.773, 0.561, 0.419), 1);
+            mat.shininess = 1.0f;
+
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            glm::quat rot = glm::normalize(glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)))));
+            glm::vec3 dir = ROCK_VEL * glm::normalize(glm::quat_cast(glm::mat3(M)) * glm::vec3(0, 0, -1));
+
+            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
+                                                          ShapeType::CONE, 1.0f, btVector3(pos.x, pos.y, pos.z),
+                                                          btVector3(0.1, 0.25, 0.1), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
+                                                          btVector3(dir.x, dir.y, dir.z));
+            m_rockTimeRight = 0.0f;
+            _buttonStates.erase(LEFT_GRIP);
+        }
+    } else {
+        m_rockTimeRight = std::max(0.0f, m_rockTimeRight - 5 * m_dt);
     }
 }
 
@@ -701,30 +809,8 @@ void View::tick() {
     updatePoses();
     updateInputs();
 
-    // Rock spawning
-    if (m_pressedKeys.find(Qt::Key_O) != m_pressedKeys.end()) {
-        m_rockTimeLeft += m_dt;
-        m_rockTimeLeft = std::min(1.75f, m_rockTimeLeft);
-        if (m_rockTimeLeft == 1.75f) {
-            CS123SceneMaterial mat;
-            mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
-            mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
-            mat.cSpecular = glm::vec4(0.25f*glm::vec3(0.773, 0.561, 0.419), 1);
-            mat.shininess = 1.0f;
-            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
-                                                          ShapeType::SPHERE, 1.0f, btVector3(-0.75, 0, 0.0),
-                                                          btVector3(0.5, 1.0, 0.5), mat, btQuaternion(0, 0, -M_PI/2.0f),
-                                                          btVector3(20, 0, 0));
-            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
-                                                          ShapeType::CONE, 1.0f, btVector3(0.75, 0, 0.0),
-                                                          btVector3(0.5, 1.0, 0.5), mat, btQuaternion(0, 0, -M_PI/2.0f),
-                                                          btVector3(20, 0, 0));
-            m_rockTimeLeft = 0.0f;
-            m_pressedKeys.erase(Qt::Key_O);
-        }
-    } else {
-        m_rockTimeLeft = std::max(0.0f, m_rockTimeLeft - 5 * m_dt);
-    }
+    // Rocks
+    updateRocks();
 
     // Shield movement
     btTransform t;

@@ -1,5 +1,8 @@
 #version 400 core
 
+uniform vec3 handPos;
+uniform vec3 handDir;
+
 uniform float active;
 uniform float dt;
 uniform float firstPass;
@@ -34,17 +37,17 @@ float calculateLifetime(int index) {
 }
 
 vec3 calculateInitialVelocity(int index) {
-    float theta = 2.0 * PI * hash(index * 872.0238);
-    float phi = PI * hash(index * 1912.124);
-    const float MAX_VEL = 0.3;
-    float velMag = MAX_VEL * hash(index * 98723.345);
-    float sinPhi = sin(phi);
-    return velMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi));
+    return handDir;
+//    float theta = 2.0 * PI * hash(index * 872.0238);
+//    float phi = PI * hash(index * 1912.124);
+//    const float MAX_VEL = 0.3;
+//    float velMag = MAX_VEL * hash(index * 98723.345);
+//    float sinPhi = sin(phi);
+//    return velMag * vec3(sinPhi*cos(theta), sinPhi*sin(theta), cos(phi));
 }
 
 vec4 initPosition(int index) {
-    const vec3 spawn = vec3(1);
-    return vec4(spawn, calculateLifetime(index));
+    return vec4(handPos, calculateLifetime(index));
 }
 
 vec4 initVelocity(int index) {
