@@ -2,7 +2,7 @@
 # Project created by QtCreator 2010-08-22T14:12:19
 # -------------------------------------------------
 QT += opengl xml
-TARGET = manus
+TARGET = visa120final
 TEMPLATE = app
 
 win32 {

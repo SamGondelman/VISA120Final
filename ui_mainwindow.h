@@ -54,7 +54,7 @@ public:
 
     void retranslateUi(QMainWindow *MainWindow)
     {
-        MainWindow->setWindowTitle(QApplication::translate("MainWindow", "Manus", 0));
+        MainWindow->setWindowTitle(QApplication::translate("MainWindow", "VISA 120 Final", 0));
     } // retranslateUi
 
 };
