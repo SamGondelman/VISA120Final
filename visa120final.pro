@@ -14,10 +14,6 @@ SOURCES += \
     camera/Player.cpp \
     game/Entity.cpp \
     game/World.cpp \
-    game/DemoWorld.cpp \
-    game/LightWorld.cpp \
-    game/WaterWorld.cpp \
-    game/RockWorld.cpp \
     game/PhysicsWorld.cpp \
     gl/GLDebug.cpp \
     gl/datatype/VBOAttribMarker.cpp \
@@ -53,10 +49,6 @@ HEADERS += \
     camera/Player.h \
     game/Entity.h \
     game/World.h \
-    game/DemoWorld.h \
-    game/LightWorld.h \
-    game/WaterWorld.h \
-    game/RockWorld.h \
     game/PhysicsWorld.h \
     gl/GLDebug.h \
     gl/datatype/VBOAttribMarker.h \

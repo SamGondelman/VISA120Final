@@ -24,7 +24,7 @@ struct Light;
 class Player;
 class ParticleSystem;
 class Texture2D;
-class World;
+class PhysicsWorld;
 class Entity;
 
 enum DrawMode {
@@ -39,14 +39,6 @@ enum DrawMode {
     BRIGHT_BLUR,
     NO_DISTORTION,
     DEFAULT
-};
-
-enum WorldState {
-    WORLD_DEMO = 0,
-    WORLD_1,
-    WORLD_2,
-    WORLD_3,
-    WORLD_4
 };
 
 enum Hand {
@@ -83,8 +75,6 @@ public:
     View(QWidget *parent);
     ~View();
 
-    void switchWorld(WorldState prevWorld = WorldState::WORLD_DEMO);
-
     static float m_globalTime;
     static std::unique_ptr<Player> m_player;
 
@@ -105,7 +95,7 @@ private:
     float m_fps;
     QTimer m_FPStimer;
 
-    std::vector<std::shared_ptr<World>> m_worlds;
+    std::unique_ptr<PhysicsWorld> m_world;
 
     // Element effects
     std::shared_ptr<ParticleSystem> m_lightParticlesLeft;
@@ -114,13 +104,9 @@ private:
     std::shared_ptr<ParticleSystem> m_fireParticlesRight;
     float m_rockTimeLeft;
     float m_rockTimeRight;
-    std::unique_ptr<Texture2D> m_shieldMap;
-    std::unique_ptr<Entity> m_leftShield;
-    std::unique_ptr<Entity> m_rightShield;
 
     // Game state
     DrawMode m_drawMode;
-    WorldState m_world;
 
     // FBOs and shaders
     std::unique_ptr<FBO> m_deferredBuffer;

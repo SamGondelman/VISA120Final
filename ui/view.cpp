@@ -20,11 +20,6 @@
 #include "ParticleSystem.h"
 
 #include "Entity.h"
-#include "World.h"
-#include "DemoWorld.h"
-#include "LightWorld.h"
-#include "WaterWorld.h"
-#include "RockWorld.h"
 #include "PhysicsWorld.h"
 
 #include <QApplication>
@@ -44,9 +39,8 @@ std::unordered_set<int> View::m_pressedKeys = std::unordered_set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_fps(0.0f), m_rockTimeLeft(0.0f), m_rockTimeRight(0.0f),
-    m_leftShield(nullptr), m_rightShield(nullptr),
-    m_drawMode(DrawMode::DEFAULT), m_world(WORLD_DEMO),
-    m_exposure(1.0f), m_useAdaptiveExposure(true)
+    m_drawMode(DrawMode::DEFAULT), m_exposure(1.0f),
+    m_useAdaptiveExposure(true)
 {
     // View needs all mouse move events, not just mouse drag events
     setMouseTracking(true);
@@ -64,9 +58,6 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 View::~View()
 {
     if (m_hmd) vr::VR_Shutdown();
-    // Must remove shields here to ensure entity deletion happens in right order
-    m_worlds[m_world]->getPhysWorld()->removeRigidBody(m_leftShield->m_rigidBody.get());
-    m_worlds[m_world]->getPhysWorld()->removeRigidBody(m_rightShield->m_rigidBody.get());
     glDeleteVertexArrays(1, &m_fullscreenQuadVAO);
 }
 
@@ -151,24 +142,20 @@ void View::initializeGL() {
                                                             ":/shaders/fireParticlesDraw.vert",
                                                             ":/shaders/fireParticlesUpdate.frag");
 
-    QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
-    m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
-                                              shieldMapImage.width(),
-                                              shieldMapImage.height());
-    // TODO: move these into Texture2D
-    TextureParametersBuilder builder;
-    builder.setFilter(TextureParameters::FILTER_METHOD::LINEAR);
-    builder.setWrap(TextureParameters::WRAP_METHOD::REPEAT);
-    TextureParameters parameters = builder.build();
-    parameters.applyTo(*m_shieldMap);
+//    QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
+//    m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
+//                                              shieldMapImage.width(),
+//                                              shieldMapImage.height());
+//    // TODO: move these into Texture2D
+//    TextureParametersBuilder builder;
+//    builder.setFilter(TextureParameters::FILTER_METHOD::LINEAR);
+//    builder.setWrap(TextureParameters::WRAP_METHOD::REPEAT);
+//    TextureParameters parameters = builder.build();
+//    parameters.applyTo(*m_shieldMap);
 
     // World setup
-    m_worlds.push_back(std::make_shared<DemoWorld>());
-    m_worlds.push_back(std::make_shared<LightWorld>());
-    m_worlds.push_back(std::make_shared<WaterWorld>());
-    m_worlds.push_back(std::make_shared<RockWorld>());
-    m_worlds.push_back(std::make_shared<PhysicsWorld>());
-    switchWorld();
+    m_world = std::make_unique<PhysicsWorld>();
+    m_world->makeCurrent();
 
     initVR();
 
@@ -265,7 +252,7 @@ void View::renderEye(vr::EVREye eye) {
     glDisable(GL_BLEND);
 
     auto eyeBuffer = eye == vr::Eye_Left ? m_leftEyeBuffer : m_rightEyeBuffer;
-    auto worldProgram = m_worlds[m_world]->getWorldProgram();
+    auto worldProgram = m_world->getWorldProgram();
 
     worldProgram->bind();
     m_deferredBuffer->bind();
@@ -277,13 +264,13 @@ void View::renderEye(vr::EVREye eye) {
     worldProgram->setUniform("P", P);
 
     if (m_drawMode != DrawMode::LIGHTS) {
-        m_worlds[m_world]->drawGeometry();
+        m_world->drawGeometry();
         drawHands(V, P);
         drawParticles(m_dt, V, P);
         drawRocks(V, P);
     } else {
         // Draw point lights as geometry
-        for (auto& light : m_worlds[m_world]->getLights()) {
+        for (auto& light : m_world->getLights()) {
             if (light.type == LightType::LIGHT_POINT) {
                 glm::mat4 M = glm::translate(light.pos) * glm::scale(glm::vec3(2.0f * light.radius));
                 worldProgram->setUniform("M", M);
@@ -336,7 +323,7 @@ void View::renderEye(vr::EVREye eye) {
         m_lightingProgram->setTexture("nor", m_deferredBuffer->getColorAttachment(1));
         m_lightingProgram->setTexture("diff", m_deferredBuffer->getColorAttachment(3));
         m_lightingProgram->setTexture("spec", m_deferredBuffer->getColorAttachment(4));
-        for (auto& light : m_worlds[m_world]->getLights()) {
+        for (auto& light : m_world->getLights()) {
             // Light uniforms
             m_lightingProgram->setUniform("light.type", static_cast<int>(light.type));
             m_lightingProgram->setUniform("light.col", light.col);
@@ -385,7 +372,7 @@ void View::renderEye(vr::EVREye eye) {
                 glClear(GL_COLOR_BUFFER_BIT);
                 m_distortionStencilProgram->setUniform("V", V);
                 m_distortionStencilProgram->setUniform("P", P);
-                drawDistortionObjects();
+//                drawDistortionObjects();
                 m_deferredBuffer->unbind();
                 m_distortionStencilProgram->unbind();
 
@@ -513,7 +500,7 @@ void View::renderEye(vr::EVREye eye) {
 }
 
 void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
-    auto program = m_worlds[WorldState::WORLD_DEMO]->getWorldProgram();
+    auto program = m_world->getWorldProgram();
     program->bind();
     program->setUniform("V", V);
     program->setUniform("P", P);
@@ -615,18 +602,6 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
     glEnable(GL_CULL_FACE);
 }
 
-void View::drawDistortionObjects() {
-    m_distortionStencilProgram->setTexture("normalMap", *m_shieldMap);
-
-    glm::mat4 M;
-    m_leftShield->getModelMatrix(M);
-    m_distortionStencilProgram->setUniform("M", M);
-    m_rightShield->draw();
-
-    m_rightShield->getModelMatrix(M);
-    m_distortionStencilProgram->setUniform("M", M);
-    m_rightShield->draw();
-}
 
 void View::mousePressEvent(QMouseEvent *event) {
 
@@ -656,16 +631,10 @@ void View::keyPressEvent(QKeyEvent *event) {
     else if (event->key() == Qt::Key_9) m_drawMode = m_drawMode == DrawMode::BRIGHT ? DrawMode::BRIGHT_BLUR : DrawMode::BRIGHT;
     else if (event->key() == Qt::Key_0) m_drawMode = DrawMode::NO_DISTORTION;
 
-    WorldState prevWorld = m_world;
-    if (event->key() == Qt::Key_F1) m_world = WorldState::WORLD_DEMO;
-    else if (event->key() == Qt::Key_F2) m_world = WorldState::WORLD_1;
-    else if (event->key() == Qt::Key_F3) m_world = WorldState::WORLD_2;
-    else if (event->key() == Qt::Key_F4) m_world = WorldState::WORLD_3;
-    else if (event->key() == Qt::Key_F5) m_world = WorldState::WORLD_4;
-
-    if (m_world != prevWorld) switchWorld(prevWorld);
-
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
+
+    // VISA 120 Final
+    if (event->key() == Qt::Key_R) m_world->makeCurrent();
 }
 
 void View::keyReleaseEvent(QKeyEvent *event) {
@@ -760,7 +729,7 @@ void View::updateRocks() {
             glm::quat rot = glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0))));
             glm::vec3 dir = ROCK_VEL * glm::normalize(glm::quat_cast(glm::mat3(M)) * glm::vec3(0, 0, -1));
 
-            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
+            m_world->getEntities().emplace_back(m_world->getPhysWorld(),
                                                           ShapeType::SPHERE, 1.0f, btVector3(pos.x, pos.y, pos.z),
                                                           btVector3(0.1, 0.25, 0.1), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
                                                           btVector3(dir.x, dir.y, dir.z));
@@ -786,7 +755,7 @@ void View::updateRocks() {
             glm::quat rot = glm::normalize(glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)))));
             glm::vec3 dir = ROCK_VEL * glm::normalize(glm::quat_cast(glm::mat3(M)) * glm::vec3(0, 0, -1));
 
-            m_worlds[m_world]->getEntities().emplace_back(m_worlds[m_world]->getPhysWorld(),
+            m_world->getEntities().emplace_back(m_world->getPhysWorld(),
                                                           ShapeType::CONE, 1.0f, btVector3(pos.x, pos.y, pos.z),
                                                           btVector3(0.1, 0.25, 0.1), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
                                                           btVector3(dir.x, dir.y, dir.z));
@@ -812,40 +781,10 @@ void View::tick() {
     // Rocks
     updateRocks();
 
-    // Shield movement
-    btTransform t;
-    t.setIdentity();
-    t.setOrigin(btVector3(2.2f * std::sin(m_globalTime/2.0f), 0, 2.2f * std::cos(m_globalTime/2.0f)));
-    t.setRotation(btQuaternion(m_globalTime/2.0f, 0, 0));
-    m_leftShield->m_rigidBody->setWorldTransform(t);
-    m_leftShield->m_rigidBody->getMotionState()->setWorldTransform(t);
-
-    m_worlds[m_world]->update(m_dt);
+    m_world->update(m_dt);
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
     update();
-}
-
-void View::switchWorld(WorldState prevWorld) {
-    m_worlds[m_world]->makeCurrent();
-
-    if (!m_leftShield && !m_rightShield) {
-        m_leftShield = std::make_unique<Entity>(m_worlds[m_world]->getPhysWorld(), ShapeType::CUBE, 0.0f,
-                                                btVector3(0.0f, 0.0f, 1.5f), btVector3(1.5f, 1.5f, 0.05f));
-        m_leftShield->m_rigidBody->setCollisionFlags(m_leftShield->m_rigidBody->getCollisionFlags() |
-                                                     btCollisionObject::CF_KINEMATIC_OBJECT);
-        m_leftShield->m_rigidBody->setActivationState(DISABLE_DEACTIVATION);
-        m_rightShield = std::make_unique<Entity>(m_worlds[m_world]->getPhysWorld(), ShapeType::CUBE, 0.0f,
-                                                 btVector3(0.0f, 0.5f, 0.0f), btVector3(0.5f, 0.5f, 0.5f));
-        m_leftShield->m_rigidBody->setCollisionFlags(m_leftShield->m_rigidBody->getCollisionFlags() |
-                                                     btCollisionObject::CF_KINEMATIC_OBJECT);
-        m_leftShield->m_rigidBody->setActivationState(DISABLE_DEACTIVATION);
-    } else {
-        m_worlds[prevWorld]->getPhysWorld()->removeRigidBody(m_leftShield->m_rigidBody.get());
-        m_worlds[prevWorld]->getPhysWorld()->removeRigidBody(m_rightShield->m_rigidBody.get());
-        m_worlds[m_world]->getPhysWorld()->addRigidBody(m_leftShield->m_rigidBody.get());
-        m_worlds[m_world]->getPhysWorld()->addRigidBody(m_rightShield->m_rigidBody.get());
-    }
 }
 
 void View::printFPS() {
