@@ -22,7 +22,6 @@ class CylinderMesh;
 class FullScreenQuad;
 struct Light;
 class Player;
-class ParticleSystem;
 class Texture2D;
 class PhysicsWorld;
 class Entity;
@@ -104,23 +103,20 @@ private:
 
     std::unique_ptr<PhysicsWorld> m_world;
 
-    Mode mode { CREATE };
-    Mode prevMode { CREATE };
+    Mode m_mode { CREATE };
+    Mode m_prevMode { CREATE };
+    bool m_prevRightTouch { false };
+    bool m_prevLeftTouch { false };
 
     // Element effects
-    std::shared_ptr<ParticleSystem> m_lightParticlesLeft;
-    std::shared_ptr<ParticleSystem> m_lightParticlesRight;
-    std::shared_ptr<ParticleSystem> m_fireParticlesLeft;
-    std::shared_ptr<ParticleSystem> m_fireParticlesRight;
-    float m_rockTimeLeft;
-    float m_rockTimeRight;
+    float m_createTimeLeft;
+    float m_createTimeRight;
 
     // Game state
     DrawMode m_drawMode;
 
     // FBOs and shaders
     std::unique_ptr<FBO> m_deferredBuffer;
-    std::unique_ptr<CS123Shader> m_rockProgram;
 
     std::unique_ptr<FBO> m_lightingBuffer;
     std::unique_ptr<CS123Shader> m_lightingProgram;
@@ -148,7 +144,6 @@ private:
     std::unique_ptr<FullScreenQuad> m_fullscreenQuad;
 
     void drawHands(glm::mat4 &V, glm::mat4 &P);
-    void drawParticles(float dt, glm::mat4& V, glm::mat4& P);
     void drawRocks(glm::mat4& V, glm::mat4& P);
     void drawDistortionObjects();
 

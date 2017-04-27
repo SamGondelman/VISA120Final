@@ -8,21 +8,21 @@
 #include <BulletDynamics/Dynamics/btRigidBody.h>
 
 Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
-               const btVector3 &pos, const btVector3 &scale, CS123SceneMaterial mat, const btQuaternion &rot, const btVector3 &vel) :
+               const btVector3 &pos, const btVector3 &scale, CS123SceneMaterial mat, const btQuaternion &rot, const btVector3 &vel, const btVector3 &angVel) :
     m_draw(true), m_shapeType(shapeType), m_mat(mat)
 {
-    setupRigidBody(physWorld, mass, pos, scale, rot, vel);
+    setupRigidBody(physWorld, mass, pos, scale, rot, vel, angVel);
 }
 
 Entity::Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
-               const btVector3 &pos, const btVector3 &scale, const btQuaternion &rot, const btVector3 &vel) :
+               const btVector3 &pos, const btVector3 &scale, const btQuaternion &rot, const btVector3 &vel, const btVector3 &angVel) :
     m_draw(false), m_shapeType(shapeType)
 {
-    setupRigidBody(physWorld, mass, pos, scale, rot, vel);
+    setupRigidBody(physWorld, mass, pos, scale, rot, vel, angVel);
 }
 
 void Entity::setupRigidBody(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, btScalar& mass,
-      const btVector3& pos, const btVector3& scale, const btQuaternion& rot, const btVector3& vel) {
+      const btVector3& pos, const btVector3& scale, const btQuaternion& rot, const btVector3& vel, const btVector3& angVel) {
     switch (m_shapeType) {
         case ShapeType::CUBE:
             m_collShape = std::make_unique<btBoxShape>(scale / 2.0f);
@@ -60,6 +60,7 @@ void Entity::setupRigidBody(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, 
                                                     localInertia);
     m_rigidBody = std::make_unique<btRigidBody>(rbInfo);
     m_rigidBody->setLinearVelocity(vel);
+    m_rigidBody->setAngularVelocity(angVel);
 
     physWorld->addRigidBody(m_rigidBody.get());
 }

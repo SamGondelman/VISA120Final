@@ -25,11 +25,12 @@ public:
     Entity() {}
     Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
            const btVector3 &pos, const btVector3 &scale, CS123SceneMaterial mat, const btQuaternion &rot = btQuaternion(0, 0, 0, 1),
-           const btVector3 &vel = btVector3(0, 0, 0));
+           const btVector3 &vel = btVector3(0, 0, 0), const btVector3 &angVel = btVector3(0, 0, 0));
     Entity(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, ShapeType shapeType, btScalar mass,
-           const btVector3 &pos, const btVector3 &scale, const btQuaternion &rot = btQuaternion(0, 0, 0, 1), const btVector3 &vel = btVector3(0, 0, 0));
+           const btVector3 &pos, const btVector3 &scale, const btQuaternion &rot = btQuaternion(0, 0, 0, 1), const btVector3 &vel = btVector3(0, 0, 0),
+           const btVector3 &angVel = btVector3(0, 0, 0));
     void setupRigidBody(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, btScalar& mass,
-          const btVector3 &pos, const btVector3 &scale, const btQuaternion &rot, const btVector3 &vel);
+          const btVector3 &pos, const btVector3 &scale, const btQuaternion &rot, const btVector3 &vel, const btVector3 &angVel);
 
     void getModelMatrix(glm::mat4& m);
     void draw();

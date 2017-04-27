@@ -17,7 +17,6 @@
 #include "gl/datatype/VAO.h"
 #include "FullScreenQuad.h"
 #include "Player.h"
-#include "ParticleSystem.h"
 
 #include "Entity.h"
 #include "PhysicsWorld.h"
@@ -44,7 +43,7 @@ unsigned int View::m_fullscreenQuadVAO = 0;
 std::unordered_set<int> View::m_pressedKeys = std::unordered_set<int>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
-    m_fps(0.0f), m_rockTimeLeft(0.0f), m_rockTimeRight(0.0f),
+    m_fps(0.0f), m_createTimeLeft(0.0f), m_createTimeRight(0.0f),
     m_drawMode(DrawMode::DEFAULT), m_exposure(1.0f),
     m_useAdaptiveExposure(true)
 {
@@ -110,10 +109,6 @@ void View::initializeGL() {
     std::string fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/lighting.frag");
     m_lightingProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
 
-    vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/rock.vert");
-    fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/rock.frag");
-    m_rockProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
-
     vertexSource = ResourceLoader::loadResourceFileToString(":/shaders/fullscreenQuad.vert");
     fragmentSource = ResourceLoader::loadResourceFileToString(":/shaders/bright.frag");
     m_brightProgram = std::make_unique<CS123Shader>(vertexSource, fragmentSource);
@@ -144,23 +139,6 @@ void View::initializeGL() {
 
     // Player setup
     m_player = std::make_unique<Player>(m_eyeWidth, m_eyeHeight);
-
-    m_lightParticlesLeft = std::make_shared<ParticleSystem>(5000,
-                                                            ":/shaders/lightParticlesDraw.frag",
-                                                            ":/shaders/lightParticlesDraw.vert",
-                                                            ":/shaders/lightParticlesUpdate.frag");
-    m_lightParticlesRight = std::make_shared<ParticleSystem>(5000,
-                                                             ":/shaders/lightParticlesDraw.frag",
-                                                             ":/shaders/lightParticlesDraw.vert",
-                                                             ":/shaders/lightParticlesUpdate.frag");
-    m_fireParticlesLeft = std::make_shared<ParticleSystem>(1000,
-                                                           ":/shaders/fireParticlesDraw.frag",
-                                                           ":/shaders/fireParticlesDraw.vert",
-                                                           ":/shaders/fireParticlesUpdate.frag");
-    m_fireParticlesRight = std::make_shared<ParticleSystem>(1000,
-                                                            ":/shaders/fireParticlesDraw.frag",
-                                                            ":/shaders/fireParticlesDraw.vert",
-                                                            ":/shaders/fireParticlesUpdate.frag");
 
 //    QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
 //    m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
@@ -286,7 +264,6 @@ void View::renderEye(vr::EVREye eye) {
     if (m_drawMode != DrawMode::LIGHTS) {
         m_world->drawGeometry();
         drawHands(V, P);
-        drawParticles(m_dt, V, P);
         drawRocks(V, P);
     } else {
         // Draw point lights as geometry
@@ -551,75 +528,38 @@ void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
     program->unbind();
 }
 
-void drawCube(int num) {
-    View::m_cube->draw(num);
-}
-
-void drawFire(int num) {
-    glBindVertexArray(View::m_fullscreenQuadVAO);
-    // Top cap
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 5, num);
-    // Bottom cap
-    glDrawArraysInstanced(GL_TRIANGLE_FAN, 5, 5, num);
-    glBindVertexArray(0);
-}
-
-void View::drawParticles(float dt, glm::mat4& V, glm::mat4& P) {
-    // variable update rate doesn't work?
-    dt = 1.0f/90.0f;
-
-    // Bind the fullscreen VAO to update entire particle texture
-    glBindVertexArray(m_fullscreenQuadVAO);
-
-    // TODO: do this better
-    std::vector<QPair<std::string, glm::vec3>> args(2);
-    if (m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
-        glm::mat4 mat = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
-        args[0] = QPair<std::string, glm::vec3>("handPos", glm::vec3(mat[3]));
-        args[1] = QPair<std::string, glm::vec3>("handDir", glm::normalize(glm::mat3(mat) * glm::vec3(0, 0, -1)));
-    }
-    m_lightParticlesLeft->update(dt, args, _axisStates[LEFT_X] > 0.7f);
-    m_fireParticlesLeft->update(dt, args, _axisStates[LEFT_TRIGGER] >= 1.0f);
-
-    if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
-        glm::mat4 mat = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
-        args[0] = QPair<std::string, glm::vec3>("handPos", glm::vec3(mat[3]));
-        args[1] = QPair<std::string, glm::vec3>("handDir", glm::normalize(glm::mat3(mat) * glm::vec3(0, 0, -1)));
-    }
-    m_lightParticlesRight->update(dt, args, _axisStates[RIGHT_X] < -0.7f);
-    m_fireParticlesRight->update(dt, args, _axisStates[RIGHT_TRIGGER] >= 1.0f);
-    glBindVertexArray(0);
-
-    // Bind the deferred buffer to draw the particles
-    m_deferredBuffer->bind();
-    m_lightParticlesLeft->render(V, P, &drawCube);
-    m_lightParticlesRight->render(V, P, &drawCube);
-    m_fireParticlesLeft->render(V, P, &drawFire);
-    m_fireParticlesRight->render(V, P, &drawFire);
-}
-
 void View::drawRocks(glm::mat4& V, glm::mat4& P) {
-    glDisable(GL_CULL_FACE);
-    m_rockProgram->bind();
-    m_rockProgram->setUniform("V", V);
-    m_rockProgram->setUniform("P", P);
+    auto program = m_world->getWorldProgram();
+    program->bind();
+    program->setUniform("V", V);
+    program->setUniform("P", P);
 
-    if (m_rockTimeLeft > 0.0f && m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
-        m_rockProgram->setUniform("time", m_rockTimeLeft);
-        glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1));
-        m_rockProgram->setUniform("M", M);
-        m_sphere->draw();
+    if (m_mode == CREATE) {
+        CS123SceneMaterial mat;
+        mat.cAmbient = glm::vec4(0.05, 0.05, 0.05, 1);
+        mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
+        mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
+        mat.shininess = 20.0f;
+        program->applyMaterial(mat);
+
+        float st = 4.0f;
+        float sr = 12.0f;
+        if (m_createTimeLeft > 0.0f && m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
+            float s = m_createTimeLeft < M_PI/st ? glm::sin(m_createTimeLeft*st) +  m_createTimeLeft*st : glm::sin(m_createTimeLeft*st - M_PI_2)/2.0f + 2.64f;
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(s/sr));
+            program->setUniform("M", M);
+            m_cube->draw();
+        }
+
+        if (m_createTimeRight > 0.0f && m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
+            float s = m_createTimeRight < M_PI/st ? glm::sin(m_createTimeRight*st) +  m_createTimeRight*st : glm::sin(m_createTimeRight*st - M_PI_2)/2.0f + 2.64f;
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(s/sr));
+            program->setUniform("M", M);
+            m_cube->draw();
+        }
     }
 
-    if (m_rockTimeRight > 0.0f && m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
-        m_rockProgram->setUniform("time", m_rockTimeRight);
-        glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1));
-        m_rockProgram->setUniform("M", M);
-        m_cone->draw();
-    }
-
-    m_rockProgram->unbind();
-    glEnable(GL_CULL_FACE);
+    program->unbind();
 }
 
 
@@ -732,58 +672,61 @@ void View::handleInput(const vr::VRControllerState_t &state, bool isLeftHand) {
 }
 
 void View::updateRocks() {
-    // Rock spawning
-    const float ROCK_VEL = 20.0f;
-    if (_buttonStates.find(LEFT_GRIP) != _buttonStates.end()) {
-        m_rockTimeLeft += m_dt;
-        m_rockTimeLeft = std::min(1.75f, m_rockTimeLeft);
-        if (m_rockTimeLeft == 1.75f) {
+    // Box spawning
+    if (m_mode == CREATE) {
+        if (_buttonStates.find(LEFT_TOUCHPAD) != _buttonStates.end()) {
+            m_createTimeLeft += m_dt;
+            m_prevLeftTouch = true;
+        } else if (m_mode == CREATE && m_prevLeftTouch){
             CS123SceneMaterial mat;
-            mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
-            mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
-            mat.cSpecular = glm::vec4(0.25f*glm::vec3(0.773, 0.561, 0.419), 1);
-            mat.shininess = 1.0f;
+            mat.cAmbient = glm::vec4(0.05, 0.05, 0.05, 1);
+            mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
+            mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
+            mat.shininess = 20.0f;
 
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
             glm::quat rot = glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0))));
-            glm::vec3 dir = ROCK_VEL * glm::normalize(glm::quat_cast(glm::mat3(M)) * glm::vec3(0, 0, -1));
+            auto v = m_trackedHandPoses[Hand::LEFT].vVelocity.v;
+            auto av = m_trackedHandPoses[Hand::LEFT].vAngularVelocity.v;
 
+            float st = 4.0f;
+            float sr = 12.0f;
+            float s = m_createTimeLeft < M_PI/st ? glm::sin(m_createTimeLeft*st) +  m_createTimeLeft*st : glm::sin(m_createTimeLeft*st - M_PI_2)/2.0f + 2.64f;
             m_world->getEntities().emplace_back(m_world->getPhysWorld(),
-                                                          ShapeType::SPHERE, 1.0f, btVector3(pos.x, pos.y, pos.z),
-                                                          btVector3(0.1, 0.25, 0.1), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
-                                                          btVector3(dir.x, dir.y, dir.z));
-            m_rockTimeLeft = 0.0f;
-            _buttonStates.erase(LEFT_GRIP);
+                                                ShapeType::CUBE, 1.0f, btVector3(pos.x, pos.y, pos.z),
+                                                btVector3(s/sr, s/sr, s/sr), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
+                                                btVector3(v[0], v[1], v[2]), btVector3(av[0], av[1], av[2]));
+            m_createTimeLeft = 0.0f;
+            m_prevLeftTouch = false;
         }
-    } else {
-        m_rockTimeLeft = std::max(0.0f, m_rockTimeLeft - 5 * m_dt);
-    }
 
-    if (_buttonStates.find(RIGHT_GRIP) != _buttonStates.end()) {
-        m_rockTimeRight += m_dt;
-        m_rockTimeRight = std::min(1.75f, m_rockTimeRight);
-        if (m_rockTimeRight == 1.75f) {
+        if (_buttonStates.find(RIGHT_TOUCHPAD) != _buttonStates.end()) {
+            m_createTimeRight += m_dt;
+            m_prevRightTouch = true;
+        } else if (m_mode == CREATE && m_prevRightTouch){
             CS123SceneMaterial mat;
-            mat.cAmbient = glm::vec4(0.25f*glm::vec3(0.137, 0.094, 0.118), 1);
-            mat.cDiffuse = glm::vec4(0.25f*glm::vec3(0.443, 0.263, 0.2), 1);
-            mat.cSpecular = glm::vec4(0.25f*glm::vec3(0.773, 0.561, 0.419), 1);
-            mat.shininess = 1.0f;
+            mat.cAmbient = glm::vec4(0.05, 0.05, 0.05, 1);
+            mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
+            mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
+            mat.shininess = 20.0f;
 
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
-            glm::quat rot = glm::normalize(glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)))));
-            glm::vec3 dir = ROCK_VEL * glm::normalize(glm::quat_cast(glm::mat3(M)) * glm::vec3(0, 0, -1));
+            glm::quat rot = glm::quat_cast(glm::mat3(M * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0))));
+            auto v = m_trackedHandPoses[Hand::RIGHT].vVelocity.v;
+            auto av = m_trackedHandPoses[Hand::RIGHT].vAngularVelocity.v;
 
+            float st = 4.0f;
+            float sr = 12.0f;
+            float s = m_createTimeRight < M_PI/st ? glm::sin(m_createTimeRight*st) +  m_createTimeRight*st : glm::sin(m_createTimeRight*st - M_PI_2)/2.0f + 2.64f;
             m_world->getEntities().emplace_back(m_world->getPhysWorld(),
-                                                          ShapeType::CONE, 1.0f, btVector3(pos.x, pos.y, pos.z),
-                                                          btVector3(0.1, 0.25, 0.1), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
-                                                          btVector3(dir.x, dir.y, dir.z));
-            m_rockTimeRight = 0.0f;
-            _buttonStates.erase(LEFT_GRIP);
+                                                ShapeType::CUBE, 1.0f, btVector3(pos.x, pos.y, pos.z),
+                                                btVector3(s/sr, s/sr, s/sr), mat, btQuaternion(rot.x, rot.y, rot.z, rot.w),
+                                                btVector3(v[0], v[1], v[2]), btVector3(av[0], av[1], av[2]));
+            m_createTimeRight = 0.0f;
+            m_prevRightTouch = false;
         }
-    } else {
-        m_rockTimeRight = std::max(0.0f, m_rockTimeRight - 5 * m_dt);
     }
 }
 
@@ -806,7 +749,7 @@ void View::tick() {
         std::string s = voce::popRecognizedString();
 
         if (s.rfind("exit") != std::string::npos) {
-            exit(0);
+//            exit(0);
         } else if (s.rfind("create") != std::string::npos) {
             QString c = QString::fromStdString(s);
             c.replace("create ", "");
@@ -814,19 +757,25 @@ void View::tick() {
             request.setSslConfiguration(QSslConfiguration::defaultConfiguration());
             request.setUrl(QUrl("https://www.google.com/search?tbm=isch&q=" + c + "+transparent"));
             m_networkManager->get(request);
-            mode = CREATE;
+            m_mode = CREATE;
         } else if (s.rfind("paint") != std::string::npos) {
             QString c = QString::fromStdString(s);
             c.replace("paint ", "");
-            mode = PAINT;
+            m_mode = PAINT;
         }
 
         std::cout << "You said: " << s << std::endl;
     }
 
-    if (prevMode != mode) {
-        std::cout << (mode == CREATE ? "create" : "paint") << std::endl;
-        prevMode = mode;
+    if (m_prevMode != m_mode) {
+        if (m_mode == PAINT) {
+            m_createTimeLeft = 0.0f;
+            m_createTimeRight = 0.0f;
+            m_prevLeftTouch = false;
+            m_prevRightTouch = false;
+        }
+        std::cout << (m_mode == CREATE ? "create" : "paint") << std::endl;
+        m_prevMode = m_mode;
     }
 
     // Update world

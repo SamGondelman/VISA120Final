@@ -4,6 +4,9 @@
 #include "gl/shaders/CS123Shader.h"
 #include "Player.h"
 
+#include "SphereMesh.h"
+#include "CylinderMesh.h"
+
 PhysicsWorld::PhysicsWorld() : World(":/shaders/shader.vert", ":/shaders/shader.frag")
 {
 }
@@ -67,4 +70,23 @@ void PhysicsWorld::drawGeometry() {
             e.draw();
         }
     }
+
+    glm::vec3 p1(0, 0.5, 0.0);
+    glm::vec3 p2(-0.25, 0.75, 0.3);
+    m = glm::translate(p1) * glm::scale(glm::vec3(0.025));
+    m_program->setUniform("M", m);
+    View::m_sphere->draw();
+
+    m = glm::translate(p2) * glm::scale(glm::vec3(0.025));
+    m_program->setUniform("M", m);
+    View::m_sphere->draw();
+
+    glm::vec3 d = p1 - p2;
+    float dist = glm::length(d);
+    float yaw = glm::degrees(atan2(d.x, d.z));
+    float pitch = glm::degrees(atan2(d.y, sqrt(d.x*d.x + d.z*d.z)));
+    glm::mat4 r = glm::mat4_cast(glm::quat(glm::vec3(pitch, yaw, 0.0f)));
+    m = glm::translate((p1 + p2)/2.0f) * r * glm::scale(glm::vec3(0.02, dist, 0.02));
+    m_program->setUniform("M", m);
+    View::m_cylinder->draw();
 }
