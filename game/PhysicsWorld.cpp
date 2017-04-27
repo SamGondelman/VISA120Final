@@ -54,6 +54,9 @@ void PhysicsWorld::makeCurrent() {
                             btVector3(0.9, 1.2, -1), btVector3(1.0, 2.6, 0.3), mat);
     m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 0.0f,
                             btVector3(-0.9, 1.2, -1), btVector3(1.0, 2.6, 0.3), mat);
+
+    // Clear paint
+    m_paint.clear();
 }
 
 void PhysicsWorld::update(float dt) {
@@ -71,22 +74,20 @@ void PhysicsWorld::drawGeometry() {
         }
     }
 
-    glm::vec3 p1(0, 0.5, 0.0);
-    glm::vec3 p2(-0.25, 0.75, 0.3);
-    m = glm::translate(p1) * glm::scale(glm::vec3(0.025));
-    m_program->setUniform("M", m);
-    View::m_sphere->draw();
-
-    m = glm::translate(p2) * glm::scale(glm::vec3(0.025));
-    m_program->setUniform("M", m);
-    View::m_sphere->draw();
-
-    glm::vec3 d = p1 - p2;
-    float dist = glm::length(d);
-    float yaw = glm::degrees(atan2(d.x, d.z));
-    float pitch = glm::degrees(atan2(d.y, sqrt(d.x*d.x + d.z*d.z)));
-    glm::mat4 r = glm::mat4_cast(glm::quat(glm::vec3(pitch, yaw, 0.0f)));
-    m = glm::translate((p1 + p2)/2.0f) * r * glm::scale(glm::vec3(0.02, dist, 0.02));
-    m_program->setUniform("M", m);
-    View::m_cylinder->draw();
+    CS123SceneMaterial mat;
+    mat.shininess = 20.0f;
+    for (auto &p : m_paint) {
+        glm::vec3 d = p.points.second - p.points.first;
+        float dist = glm::length(d);
+        float yaw = atan2(d.x, d.z);
+        float pitch = M_PI_2 - asin(d.y/glm::length(d));
+        glm::mat4 r = glm::mat4_cast(glm::quat(glm::vec3(pitch, yaw, 0.0f)));
+        m = glm::translate((p.points.first + p.points.second)/2.0f) * r * glm::scale(glm::vec3(0.02, dist, 0.02));
+        m_program->setUniform("M", m);
+        mat.cAmbient.xyz = p.col * 0.05f;
+        mat.cDiffuse.xyz = p.col * 0.5f;
+        mat.cSpecular.xyz = p.col * 0.7f;
+        m_program->applyMaterial(mat);
+        View::m_cylinder->draw();
+    }
 }

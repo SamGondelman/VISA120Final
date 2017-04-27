@@ -103,10 +103,13 @@ private:
 
     std::unique_ptr<PhysicsWorld> m_world;
 
-    Mode m_mode { CREATE };
-    Mode m_prevMode { CREATE };
+    Mode m_mode { PAINT };
+    Mode m_prevMode { PAINT };
     bool m_prevRightTouch { false };
     bool m_prevLeftTouch { false };
+    glm::vec3 m_paintLeft { glm::vec3(NAN) };
+    glm::vec3 m_paintRight { glm::vec3(NAN) };
+    glm::vec3 m_paintColor { glm::vec3(1.0f) };
 
     // Element effects
     float m_createTimeLeft;
@@ -144,7 +147,7 @@ private:
     std::unique_ptr<FullScreenQuad> m_fullscreenQuad;
 
     void drawHands(glm::mat4 &V, glm::mat4 &P);
-    void drawRocks(glm::mat4& V, glm::mat4& P);
+    void drawAction(glm::mat4& V, glm::mat4& P);
     void drawDistortionObjects();
 
     void initializeGL();
@@ -156,7 +159,7 @@ private:
 
     void updatePoses();
     void updateInputs();
-    void updateRocks();
+    void updateActions();
 
     void mousePressEvent(QMouseEvent *event);
     void mouseMoveEvent(QMouseEvent *event);

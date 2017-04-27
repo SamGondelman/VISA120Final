@@ -99,8 +99,8 @@ void View::initializeGL() {
 
     m_sphere = std::make_unique<SphereMesh>(10, 10);
     m_cube = std::make_unique<CubeMesh>(1);
-    m_cone = std::make_unique<ConeMesh>(20, 20);
-    m_cylinder = std::make_unique<CylinderMesh>(20, 20);
+    m_cone = std::make_unique<ConeMesh>(1, 20);
+    m_cylinder = std::make_unique<CylinderMesh>(1, 20);
     m_lightSphere = std::make_unique<SphereMesh>(15, 15);
     m_fullscreenQuad = std::make_unique<FullScreenQuad>();
 
@@ -264,7 +264,7 @@ void View::renderEye(vr::EVREye eye) {
     if (m_drawMode != DrawMode::LIGHTS) {
         m_world->drawGeometry();
         drawHands(V, P);
-        drawRocks(V, P);
+        drawAction(V, P);
     } else {
         // Draw point lights as geometry
         for (auto& light : m_world->getLights()) {
@@ -528,7 +528,7 @@ void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
     program->unbind();
 }
 
-void View::drawRocks(glm::mat4& V, glm::mat4& P) {
+void View::drawAction(glm::mat4& V, glm::mat4& P) {
     auto program = m_world->getWorldProgram();
     program->bind();
     program->setUniform("V", V);
@@ -556,6 +556,39 @@ void View::drawRocks(glm::mat4& V, glm::mat4& P) {
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(s/sr));
             program->setUniform("M", M);
             m_cube->draw();
+        }
+    } else {
+        CS123SceneMaterial mat;
+        mat.cAmbient.xyz = m_paintColor * 0.05f;
+        mat.cDiffuse.xyz = m_paintColor * 0.5f;
+        mat.cSpecular.xyz = m_paintColor * 0.7f;
+        mat.shininess = 20.0f;
+        program->applyMaterial(mat);
+
+        if (!glm::isnan(m_paintLeft.x) && m_trackedHandPoses[Hand::LEFT].bPoseIsValid) {
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            glm::vec3 d = pos - m_paintLeft;
+            float dist = glm::length(d);
+            float yaw = atan2(d.x, d.z);
+            float pitch = M_PI_2 - asin(d.y/glm::length(d));
+            glm::mat4 r = glm::mat4_cast(glm::quat(glm::vec3(pitch, yaw, 0.0f)));
+            glm::mat4 m = glm::translate((pos + m_paintLeft)/2.0f) * r * glm::scale(glm::vec3(0.02, dist, 0.02));
+            program->setUniform("M", m);
+            m_cylinder->draw();
+        }
+
+        if (!glm::isnan(m_paintRight.x) && m_trackedHandPoses[Hand::RIGHT].bPoseIsValid) {
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            glm::vec3 d = pos - m_paintRight;
+            float dist = glm::length(d);
+            float yaw = atan2(d.x, d.z);
+            float pitch = M_PI_2 - asin(d.y/glm::length(d));
+            glm::mat4 r = glm::mat4_cast(glm::quat(glm::vec3(pitch, yaw, 0.0f)));
+            glm::mat4 m = glm::translate((pos + m_paintRight)/2.0f) * r * glm::scale(glm::vec3(0.02, dist, 0.02));
+            program->setUniform("M", m);
+            m_cylinder->draw();
         }
     }
 
@@ -671,7 +704,7 @@ void View::handleInput(const vr::VRControllerState_t &state, bool isLeftHand) {
     }
 }
 
-void View::updateRocks() {
+void View::updateActions() {
     // Box spawning
     if (m_mode == CREATE) {
         if (_buttonStates.find(LEFT_TOUCHPAD) != _buttonStates.end()) {
@@ -727,6 +760,36 @@ void View::updateRocks() {
             m_createTimeRight = 0.0f;
             m_prevRightTouch = false;
         }
+    } else {
+        // Painting
+        if (_axisStates[LEFT_TRIGGER] > 0.95) {
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            if (glm::isnan(m_paintLeft.x)) {
+                m_paintLeft = pos;
+            } else if (glm::distance(m_paintLeft, pos) > 0.1f) {
+                m_world->addPaint(m_paintLeft, pos, m_paintColor);
+                m_paintLeft = pos;
+            }
+        }
+
+        if (_axisStates[RIGHT_TRIGGER] > 0.95) {
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            if (glm::isnan(m_paintRight.x)) {
+                m_paintRight = pos;
+            } else if (glm::distance(m_paintRight, pos) > 0.1f) {
+                m_world->addPaint(m_paintRight, pos, m_paintColor);
+                m_paintRight = pos;
+            }
+        }
+
+        if (_buttonStates.find(LEFT_GRIP) != _buttonStates.end()) {
+            m_paintLeft = glm::vec3(NAN);
+        }
+        if (_buttonStates.find(RIGHT_GRIP) != _buttonStates.end()) {
+            m_paintRight = glm::vec3(NAN);
+        }
     }
 }
 
@@ -742,7 +805,7 @@ void View::tick() {
     updateInputs();
 
     // Rocks
-    updateRocks();
+    updateActions();
 
     // voce
     while (voce::getRecognizerQueueSize() > 0) {
