@@ -425,5 +425,4 @@ win32 {
     }
     copyToDestdir($$PWD/libeay32.dll)
     copyToDestdir($$PWD/ssleay32.dll)
-    copyToDestdir("C:\Program Files (x86)\Java\jdk1.8.0_131\jre\bin\server\jvm.dll")
 }
