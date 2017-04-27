@@ -1,0 +1,12 @@
+#JSGF V1.0;
+
+grammar visa120grammar;
+
+public <phrases> = (exit | <create> | <paint>);
+
+<create> = create (<object> | <animal>);
+<object> = (couch | pillow | cloud | water | tree);
+<animal> = (cat | dog | hamster | mouse | horse);
+
+<paint> = paint <color>;
+<color> = (red | green | blue | yellow | cyan | magenta | black | white);

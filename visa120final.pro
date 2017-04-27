@@ -1,7 +1,7 @@
 # -------------------------------------------------
 # Project created by QtCreator 2010-08-22T14:12:19
 # -------------------------------------------------
-QT += opengl xml
+QT += opengl xml network
 TARGET = visa120final
 TEMPLATE = app
 
@@ -79,11 +79,14 @@ HEADERS += \
     ui/viewformat.h \
     ui/mainwindow.h \
     ui_mainwindow.h \
-    glew-1.10.0/include/GL/glew.h
+    glew-1.10.0/include/GL/glew.h \
+    libraries/voce/src/c++/voce.h
 
 FORMS += ui/mainwindow.ui
-INCLUDEPATH += camera game glm lib libraries libraries/bullet3/src libraries/openvr/headers particles shapes ui glew-1.10.0/include
-DEPENDPATH += camera game glm lib libraries libraries/bullet3/src libraries/openvr/headers particles shapes ui glew-1.10.0/include
+INCLUDEPATH += camera game glm lib libraries libraries/bullet3/src libraries/openvr/headers particles shapes ui glew-1.10.0/include \
+                libraries/voce libraries/voce/src/c++ "C:/Program Files (x86)/Java/jdk1.8.0_131/include" "C:/Program Files (x86)/Java/jdk1.8.0_131/include/win32"
+DEPENDPATH += camera game glm lib libraries libraries/bullet3/src libraries/openvr/headers particles shapes ui glew-1.10.0/include \
+                libraries/voce libraries/voce/src/c++ "C:/Program Files (x86)/Java/jdk1.8.0_131/include" "C:/Program Files (x86)/Java/jdk1.8.0_131/include/win32"
 
 DEFINES += _USE_MATH_DEFINES
 DEFINES += TIXML_USE_STL
@@ -389,6 +392,10 @@ HEADERS += \
     libraries/bullet3/src/LinearMath/btAlignedAllocator.h \
     libraries/bullet3/src/LinearMath/btAabbUtil2.h
 
+LIBS += -L"C:\Program Files (x86)\Java\jdk1.8.0_131\lib" \
+        -L"C:\Program Files (x86)\Java\jdk1.8.0_131\jre\bin\server" \
+        -ljvm
+
 defineTest(copyToDestdir) {
     files = $$1
     for(FILE, files) {
@@ -416,4 +423,7 @@ win32 {
             LIBS += -L$$PWD/libraries/openvr/lib/win64/ -lopenvr_api
             copyToDestdir($$PWD/libraries/openvr/bin/win64/openvr_api.dll)
     }
+    copyToDestdir($$PWD/libeay32.dll)
+    copyToDestdir($$PWD/ssleay32.dll)
+    copyToDestdir("C:\Program Files (x86)\Java\jdk1.8.0_131\jre\bin\server\jvm.dll")
 }

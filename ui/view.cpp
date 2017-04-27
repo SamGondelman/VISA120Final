@@ -26,7 +26,13 @@
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QDebug>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
 #include <iostream>
+#include <time.h>
+#include <QLoggingCategory>
+
+#include "voce/src/c++/voce.h"
 
 float View::m_globalTime = 0.0f;
 std::unique_ptr<Player> View::m_player = nullptr;
@@ -53,12 +59,26 @@ View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
 
     // Print FPS
     connect(&m_FPStimer, SIGNAL(timeout()), this, SLOT(printFPS()));
+
+    // Setup network managers
+    srand(time(NULL));
+    QLoggingCategory::setFilterRules("qt.network.ssl.warning=false");
+    m_networkManager = std::make_unique<QNetworkAccessManager>();
+    m_networkManagerImg = std::make_unique<QNetworkAccessManager>();
+    connect(m_networkManager.get(), SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(getImageLinkFromURL(QNetworkReply*)));
+    connect(m_networkManagerImg.get(), SIGNAL(finished(QNetworkReply*)),
+            this, SLOT(getImageFromLink(QNetworkReply*)));
+
+    // Start voce
+    voce::init("libraries/voce/lib", true, true, "", "visa120grammar");
 }
 
 View::~View()
 {
     if (m_hmd) vr::VR_Shutdown();
     glDeleteVertexArrays(1, &m_fullscreenQuadVAO);
+    voce::destroy();
 }
 
 void View::initializeGL() {
@@ -781,6 +801,35 @@ void View::tick() {
     // Rocks
     updateRocks();
 
+    // voce
+    while (voce::getRecognizerQueueSize() > 0) {
+        std::string s = voce::popRecognizedString();
+
+        if (s.rfind("exit") != std::string::npos) {
+            exit(0);
+        } else if (s.rfind("create") != std::string::npos) {
+            QString c = QString::fromStdString(s);
+            c.replace("create ", "");
+            QNetworkRequest request;
+            request.setSslConfiguration(QSslConfiguration::defaultConfiguration());
+            request.setUrl(QUrl("https://www.google.com/search?tbm=isch&q=" + c + "+transparent"));
+            m_networkManager->get(request);
+            mode = CREATE;
+        } else if (s.rfind("paint") != std::string::npos) {
+            QString c = QString::fromStdString(s);
+            c.replace("paint ", "");
+            mode = PAINT;
+        }
+
+        std::cout << "You said: " << s << std::endl;
+    }
+
+    if (prevMode != mode) {
+        std::cout << (mode == CREATE ? "create" : "paint") << std::endl;
+        prevMode = mode;
+    }
+
+    // Update world
     m_world->update(m_dt);
 
     // Flag this view for repainting (Qt will call paintGL() soon after)
@@ -789,4 +838,46 @@ void View::tick() {
 
 void View::printFPS() {
     std::cout << m_fps << std::endl;
+}
+
+void View::getImageLinkFromURL(QNetworkReply *reply) {
+    if (reply->error() != QNetworkReply::NoError) {
+        std::cout << "getImageLinkFromPage error" << std::endl;
+        return;
+    }
+
+    QString contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
+    if (!contentType.toLower().contains("charset=utf-8")) {
+        std::cout << "getImageLinkFromPage contentType error" << std::endl;
+        return;
+    }
+
+    QString html = QString(reply->readAll());
+    QStringList sp = html.split("https://encrypted-tbn");
+    QString s = sp.at((rand() % (sp.size() - 1)) + 1);
+
+    QNetworkRequest request;
+    request.setSslConfiguration(QSslConfiguration::defaultConfiguration());
+    request.setUrl(QUrl("https://encrypted-tbn" + s.split("\"")[0]));
+    m_networkManagerImg->get(request);
+
+    delete reply;
+}
+
+void View::getImageFromLink(QNetworkReply *reply) {
+    if (reply->error() != QNetworkReply::NoError) {
+        std::cout << "getImageFromLink error" << std::endl;
+        return;
+    }
+
+    QString contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
+    if (!contentType.toLower().contains("image")) {
+        std::cout << "getImageFromLink contentType error" << std::endl;
+        return;
+    }
+
+    QImage img = QImage::fromData(reply->readAll());
+    img.save("test.png");
+
+    delete reply;
 }

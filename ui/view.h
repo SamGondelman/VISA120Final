@@ -26,6 +26,8 @@ class ParticleSystem;
 class Texture2D;
 class PhysicsWorld;
 class Entity;
+class QNetworkAccessManager;
+class QNetworkReply;
 
 enum DrawMode {
     POSITION = 0,
@@ -68,6 +70,11 @@ enum ViveAxis {
     RIGHT_TRIGGER,
 };
 
+enum Mode {
+    CREATE = 0,
+    PAINT
+};
+
 class View : public QGLWidget {
     Q_OBJECT
 
@@ -96,6 +103,9 @@ private:
     QTimer m_FPStimer;
 
     std::unique_ptr<PhysicsWorld> m_world;
+
+    Mode mode { CREATE };
+    Mode prevMode { CREATE };
 
     // Element effects
     std::shared_ptr<ParticleSystem> m_lightParticlesLeft;
@@ -194,9 +204,14 @@ private:
         );
     }
 
+    std::unique_ptr<QNetworkAccessManager> m_networkManager;
+    std::unique_ptr<QNetworkAccessManager> m_networkManagerImg;
+
 private slots:
     void tick();
     void printFPS();
+    void getImageLinkFromURL(QNetworkReply *reply);
+    void getImageFromLink(QNetworkReply *reply);
 };
 
 #endif // VIEW_H
