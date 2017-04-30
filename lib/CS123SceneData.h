@@ -112,7 +112,7 @@ struct CS123SceneCameraData {
 // Data for file maps (ie: texture maps)
 struct CS123SceneFileMap {
 //    CS123SceneFileMap() : texid(0) {}
-   bool isUsed;
+   bool isUsed { false };
    std::string filename;
    float repeatU;
    float repeatV;

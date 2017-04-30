@@ -41,6 +41,7 @@ std::unique_ptr<ConeMesh> View::m_cone = nullptr;
 std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
 unsigned int View::m_fullscreenQuadVAO = 0;
 std::unordered_set<int> View::m_pressedKeys = std::unordered_set<int>();
+std::unordered_map<std::string, Texture2D> View::m_textureMap = std::unordered_map<std::string, Texture2D>();
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_fps(0.0f), m_createTimeLeft(0.0f), m_createTimeRight(0.0f),
@@ -140,16 +141,9 @@ void View::initializeGL() {
     // Player setup
     m_player = std::make_unique<Player>(m_eyeWidth, m_eyeHeight);
 
-//    QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
-//    m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
-//                                              shieldMapImage.width(),
-//                                              shieldMapImage.height());
-//    // TODO: move these into Texture2D
-//    TextureParametersBuilder builder;
-//    builder.setFilter(TextureParameters::FILTER_METHOD::LINEAR);
-//    builder.setWrap(TextureParameters::WRAP_METHOD::REPEAT);
-//    TextureParameters parameters = builder.build();
-//    parameters.applyTo(*m_shieldMap);
+    QString helpImagePath = ":/images/vivewand.png";
+    QImage helpImage = QImage(helpImagePath);
+    addImage(helpImagePath, helpImage);
 
     // World setup
     m_world = std::make_unique<PhysicsWorld>();
@@ -186,6 +180,18 @@ void View::initializeGL() {
                                           TextureParameters::WRAP_METHOD::CLAMP_TO_EDGE,
                                           TextureParameters::FILTER_METHOD::LINEAR,
                                           GL_FLOAT);
+}
+
+void View::addImage(QString &s, QImage &img) {
+    img = QGLWidget::convertToGLFormat(img);
+    Texture2D tex(img.bits(), img.width(), img.height());
+    TextureParametersBuilder builder;
+    builder.setFilter(TextureParameters::FILTER_METHOD::LINEAR);
+    builder.setWrap(TextureParameters::WRAP_METHOD::REPEAT);
+    TextureParameters parameters = builder.build();
+    parameters.applyTo(tex);
+
+    m_textureMap.emplace(std::pair<std::string, Texture2D>(s.toStdString(), std::move(tex)));
 }
 
 void View::initVR() {
@@ -824,6 +830,23 @@ void View::tick() {
         } else if (s.rfind("paint") != std::string::npos) {
             QString c = QString::fromStdString(s);
             c.replace("paint ", "");
+            if (c == "red") {
+                m_paintColor = glm::vec3(1, 0, 0);
+            } else if (c == "green") {
+                m_paintColor = glm::vec3(0, 1, 0);
+            } else if (c == "blue") {
+                m_paintColor = glm::vec3(0, 0, 1);
+            } else if (c == "yellow") {
+                m_paintColor = glm::vec3(1, 1, 0);
+            } else if (c == "cyan") {
+                m_paintColor = glm::vec3(0, 1, 1);
+            } else if (c == "magenta") {
+                m_paintColor = glm::vec3(1, 0, 1);
+            } else if (c == "black") {
+                m_paintColor = glm::vec3(0);
+            } else if (c == "white") {
+                m_paintColor = glm::vec3(1);
+            }
             m_mode = PAINT;
         }
 
@@ -836,6 +859,9 @@ void View::tick() {
             m_createTimeRight = 0.0f;
             m_prevLeftTouch = false;
             m_prevRightTouch = false;
+        } else {
+            m_paintLeft = glm::vec3(NAN);
+            m_paintRight = glm::vec3(NAN);
         }
         std::cout << (m_mode == CREATE ? "create" : "paint") << std::endl;
         m_prevMode = m_mode;
@@ -854,13 +880,13 @@ void View::printFPS() {
 
 void View::getImageLinkFromURL(QNetworkReply *reply) {
     if (reply->error() != QNetworkReply::NoError) {
-        std::cout << "getImageLinkFromPage error" << std::endl;
+        std::cout << "getImageLinkFromURL error: " << reply->errorString().toStdString() << std::endl;
         return;
     }
 
     QString contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString();
     if (!contentType.toLower().contains("charset=utf-8")) {
-        std::cout << "getImageLinkFromPage contentType error" << std::endl;
+        std::cout << "getImageLinkFromURL contentType error" << std::endl;
         return;
     }
 

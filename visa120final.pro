@@ -424,5 +424,6 @@ win32 {
             copyToDestdir($$PWD/libraries/openvr/bin/win64/openvr_api.dll)
     }
     copyToDestdir($$PWD/libeay32.dll)
+    copyToDestdir($$PWD/libssl32.dll)
     copyToDestdir($$PWD/ssleay32.dll)
 }

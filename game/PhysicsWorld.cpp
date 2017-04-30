@@ -6,6 +6,7 @@
 
 #include "SphereMesh.h"
 #include "CylinderMesh.h"
+#include "gl/textures/Texture2D.h"
 
 PhysicsWorld::PhysicsWorld() : World(":/shaders/shader.vert", ":/shaders/shader.frag")
 {
@@ -24,14 +25,6 @@ void PhysicsWorld::makeCurrent() {
     mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
     mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
     mat.shininess = 20.0f;
-//    m_entities.emplace_back(m_physWorld, ShapeType::SPHERE, 1.0f,
-//                            btVector3(1.5, 2, 0), btVector3(1.0, 1.0, 1.0), mat);
-//    m_entities.emplace_back(m_physWorld, ShapeType::CONE, 1.0f,
-//                            btVector3(-1.5, 2, 0), btVector3(1.0, 1.0, 1.0), mat);
-//    m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 1.0f,
-//                            btVector3(0, 2, -1.5), btVector3(1.0, 1.0, 1.0), mat);
-//    m_entities.emplace_back(m_physWorld, ShapeType::CYLINDER, 1.0f,
-//                            btVector3(0, 2, 1.5), btVector3(1.0, 1.0, 1.0), mat);
 
     // Walls
     m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 0.0f,
@@ -55,6 +48,12 @@ void PhysicsWorld::makeCurrent() {
     m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 0.0f,
                             btVector3(-0.9, 1.2, -1), btVector3(1.0, 2.6, 0.3), mat);
 
+    // Instructions
+    mat.textureMap.isUsed = true;
+    mat.textureMap.filename = ":/images/vivewand.png";
+    m_entities.emplace_back(m_physWorld, ShapeType::CUBE, 0.0f,
+                            btVector3(0.9, 1.7, -0.89), btVector3(0.5, 0.5, 0.1), mat);
+
     // Clear paint
     m_paint.clear();
 }
@@ -70,9 +69,14 @@ void PhysicsWorld::drawGeometry() {
             e.getModelMatrix(m);
             m_program->setUniform("M", m);
             m_program->applyMaterial(e.getMaterial());
+            auto &containsTex = View::m_textureMap.find(e.getMaterial().textureMap.filename);
+            int useTexture = e.getMaterial().textureMap.isUsed && (containsTex != View::m_textureMap.end() ? 1 : 0);
+            m_program->setUniform("useTexture", useTexture);
+            if (useTexture) m_program->setTexture("tex", View::m_textureMap[e.getMaterial().textureMap.filename]);
             e.draw();
         }
     }
+    m_program->setUniform("useTexture", 0);
 
     CS123SceneMaterial mat;
     mat.shininess = 20.0f;

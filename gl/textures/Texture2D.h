@@ -7,6 +7,7 @@
 
 class Texture2D : public Texture {
 public:
+    Texture2D() {}
     Texture2D(unsigned char *data, int width, int height, GLenum type = GL_UNSIGNED_BYTE);
 
     virtual void bind() const override;

@@ -93,6 +93,8 @@ public:
 
     static std::unordered_set<int> m_pressedKeys;
 
+    static std::unordered_map<std::string, Texture2D> m_textureMap;
+
 private:
     QTime m_time;
     QTimer m_timer;
@@ -160,6 +162,8 @@ private:
     void updatePoses();
     void updateInputs();
     void updateActions();
+
+    void addImage(QString &s, QImage &img);
 
     void mousePressEvent(QMouseEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
