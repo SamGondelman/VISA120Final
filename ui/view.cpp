@@ -102,7 +102,7 @@ void View::initializeGL() {
     m_sphere = std::make_unique<SphereMesh>(10, 10);
     m_cube = std::make_unique<CubeMesh>(1);
     m_cone = std::make_unique<ConeMesh>(1, 20);
-    m_cylinder = std::make_unique<CylinderMesh>(1, 20);
+    m_cylinder = std::make_unique<CylinderMesh>(1, 5);
     m_lightSphere = std::make_unique<SphereMesh>(15, 15);
     m_fullscreenQuad = std::make_unique<FullScreenQuad>();
 
@@ -211,10 +211,10 @@ void View::initVR() {
 
     // get eye matrices
     m_rightProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Right, m_player->getNear(), m_player->getFar()));
-    m_rightPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Right)));
+    m_rightPose = vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Right));
 
     m_leftProjection = vrMatrixToQt(m_hmd->GetProjectionMatrix(vr::Eye_Left, m_player->getNear(), m_player->getFar()));
-    m_leftPose = glm::inverse(vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Left)));
+    m_leftPose = vrMatrixToQt(m_hmd->GetEyeToHeadTransform(vr::Eye_Left));
 
     // setup frame buffers for eyes
     m_hmd->GetRecommendedRenderTargetSize(&m_eyeWidth, &m_eyeHeight);
