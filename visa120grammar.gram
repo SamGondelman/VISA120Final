@@ -2,10 +2,10 @@
 
 grammar visa120grammar;
 
-public <phrases> = (exit | <create> | <paint>);
+public <phrases> = (<create> | <paint>);
 
 <create> = create (<object> | <animal>);
-<object> = (couch | pillow | cloud | water | tree);
+<object> = (couch | pillow | water | tree);
 <animal> = (cat | dog | hamster | mouse | horse);
 
 <paint> = paint <color>;

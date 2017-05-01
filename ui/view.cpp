@@ -146,6 +146,17 @@ void View::initializeGL() {
     QImage helpImage = QImage(helpImagePath);
     addImage(helpImagePath, helpImage);
 
+    QImage shieldMapImage = QImage(":/images/shieldNormalMap.png");
+    m_shieldMap = std::make_unique<Texture2D>(shieldMapImage.bits(),
+                                              shieldMapImage.width(),
+                                              shieldMapImage.height());
+    // TODO: move these into Texture2D
+    TextureParametersBuilder builder;
+    builder.setFilter(TextureParameters::FILTER_METHOD::LINEAR);
+    builder.setWrap(TextureParameters::WRAP_METHOD::REPEAT);
+    TextureParameters parameters = builder.build();
+    parameters.applyTo(*m_shieldMap);
+
     // World setup
     m_world = std::make_unique<PhysicsWorld>();
     m_world->makeCurrent();
@@ -378,7 +389,7 @@ void View::renderEye(vr::EVREye eye) {
                 glClear(GL_COLOR_BUFFER_BIT);
                 m_distortionStencilProgram->setUniform("V", V);
                 m_distortionStencilProgram->setUniform("P", P);
-//                drawDistortionObjects();
+                drawDistortionObjects();
                 m_deferredBuffer->unbind();
                 m_distortionStencilProgram->unbind();
 
@@ -613,6 +624,13 @@ void View::drawAction(glm::mat4& V, glm::mat4& P) {
     program->unbind();
 }
 
+void View::drawDistortionObjects() {
+    m_distortionStencilProgram->setTexture("normalMap", *m_shieldMap);
+
+    glm::mat4 M = glm::translate(glm::vec3(0, 1.5, -1)) * glm::scale(glm::vec3(1, 1.4, 0.05));
+    m_distortionStencilProgram->setUniform("M", M);
+    m_cube->draw();
+}
 
 void View::mousePressEvent(QMouseEvent *event) {
 

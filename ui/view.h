@@ -132,6 +132,7 @@ private:
     std::unique_ptr<FBO> m_distortionBuffer;
     std::unique_ptr<CS123Shader> m_distortionStencilProgram;
     std::unique_ptr<CS123Shader> m_distortionProgram;
+    std::unique_ptr<Texture2D> m_shieldMap;
 
     std::unique_ptr<CS123Shader> m_textureProgram;
 
