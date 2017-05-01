@@ -64,6 +64,7 @@ void PhysicsWorld::update(float dt) {
 
 void PhysicsWorld::drawGeometry() {
     glm::mat4 m;
+    View::m_textureMutex.lock();
     for (auto& e : m_entities) {
         if (e.m_draw) {
             e.getModelMatrix(m);
@@ -76,6 +77,7 @@ void PhysicsWorld::drawGeometry() {
             e.draw();
         }
     }
+    View::m_textureMutex.unlock();
     m_program->setUniform("useTexture", 0);
 
     CS123SceneMaterial mat;

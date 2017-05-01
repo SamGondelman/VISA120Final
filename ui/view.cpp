@@ -42,6 +42,7 @@ std::unique_ptr<CylinderMesh> View::m_cylinder = nullptr;
 unsigned int View::m_fullscreenQuadVAO = 0;
 std::unordered_set<int> View::m_pressedKeys = std::unordered_set<int>();
 std::unordered_map<std::string, Texture2D> View::m_textureMap = std::unordered_map<std::string, Texture2D>();
+QMutex View::m_textureMutex;
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_fps(0.0f), m_createTimeLeft(0.0f), m_createTimeRight(0.0f),
@@ -191,7 +192,9 @@ void View::addImage(QString &s, QImage &img) {
     TextureParameters parameters = builder.build();
     parameters.applyTo(tex);
 
+    m_textureMutex.lock();
     m_textureMap.emplace(std::pair<std::string, Texture2D>(s.toStdString(), std::move(tex)));
+    m_textureMutex.unlock();
 }
 
 void View::initVR() {
@@ -547,6 +550,7 @@ void View::drawAction(glm::mat4& V, glm::mat4& P) {
         mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
         mat.shininess = 20.0f;
         program->applyMaterial(mat);
+        m_textureMutex.lock();
 
         float st = 4.0f;
         float sr = 12.0f;
@@ -554,6 +558,9 @@ void View::drawAction(glm::mat4& V, glm::mat4& P) {
             float s = m_createTimeLeft < M_PI/st ? glm::sin(m_createTimeLeft*st) +  m_createTimeLeft*st : glm::sin(m_createTimeLeft*st - M_PI_2)/2.0f + 2.64f;
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(s/sr));
             program->setUniform("M", M);
+            int useTexture = m_textureMap.find(m_currentTextureString.toStdString()) != m_textureMap.end() ? 1 : 0;
+            program->setUniform("useTexture", useTexture);
+            if (useTexture) program->setTexture("tex", m_textureMap[m_currentTextureString.toStdString()]);
             m_cube->draw();
         }
 
@@ -561,8 +568,13 @@ void View::drawAction(glm::mat4& V, glm::mat4& P) {
             float s = m_createTimeRight < M_PI/st ? glm::sin(m_createTimeRight*st) +  m_createTimeRight*st : glm::sin(m_createTimeRight*st - M_PI_2)/2.0f + 2.64f;
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(-90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(s/sr));
             program->setUniform("M", M);
+            int useTexture = m_textureMap.find(m_currentTextureString.toStdString()) != m_textureMap.end() ? 1 : 0;
+            program->setUniform("useTexture", useTexture);
+            if (useTexture) program->setTexture("tex", m_textureMap[m_currentTextureString.toStdString()]);
             m_cube->draw();
         }
+        m_textureMutex.unlock();
+        program->setUniform("useTexture", 0);
     } else {
         CS123SceneMaterial mat;
         mat.cAmbient.xyz = m_paintColor * 0.05f;
@@ -722,6 +734,8 @@ void View::updateActions() {
             mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
             mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
             mat.shininess = 20.0f;
+            mat.textureMap.isUsed = !m_currentTextureString.isEmpty();
+            mat.textureMap.filename = m_currentTextureString.toStdString();
 
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
@@ -749,6 +763,8 @@ void View::updateActions() {
             mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
             mat.cSpecular = glm::vec4(0.7, 0.7, 0.7, 1);
             mat.shininess = 20.0f;
+            mat.textureMap.isUsed = !m_currentTextureString.isEmpty();
+            mat.textureMap.filename = m_currentTextureString.toStdString();
 
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
@@ -859,6 +875,7 @@ void View::tick() {
             m_createTimeRight = 0.0f;
             m_prevLeftTouch = false;
             m_prevRightTouch = false;
+            m_currentTextureString = "";
         } else {
             m_paintLeft = glm::vec3(NAN);
             m_paintRight = glm::vec3(NAN);
@@ -916,6 +933,9 @@ void View::getImageFromLink(QNetworkReply *reply) {
 
     QImage img = QImage::fromData(reply->readAll());
     img.save("test.png");
+
+    m_currentTextureString = reply->url().toString();
+    addImage(reply->url().toString(), img);
 
     delete reply;
 }

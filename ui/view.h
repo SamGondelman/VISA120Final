@@ -8,6 +8,7 @@
 #include <memory>
 #include <unordered_set>
 #include <unordered_map>
+#include <QMutex>
 
 #include "glm/glm.hpp"
 
@@ -94,6 +95,8 @@ public:
     static std::unordered_set<int> m_pressedKeys;
 
     static std::unordered_map<std::string, Texture2D> m_textureMap;
+    static QMutex m_textureMutex;
+    QString m_currentTextureString { "" };
 
 private:
     QTime m_time;
@@ -105,8 +108,8 @@ private:
 
     std::unique_ptr<PhysicsWorld> m_world;
 
-    Mode m_mode { PAINT };
-    Mode m_prevMode { PAINT };
+    Mode m_mode { CREATE };
+    Mode m_prevMode { CREATE };
     bool m_prevRightTouch { false };
     bool m_prevLeftTouch { false };
     glm::vec3 m_paintLeft { glm::vec3(NAN) };
