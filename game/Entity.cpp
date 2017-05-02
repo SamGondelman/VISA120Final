@@ -61,6 +61,7 @@ void Entity::setupRigidBody(std::shared_ptr<btDiscreteDynamicsWorld> physWorld, 
     m_rigidBody = std::make_unique<btRigidBody>(rbInfo);
     m_rigidBody->setLinearVelocity(vel);
     m_rigidBody->setAngularVelocity(angVel);
+    m_rigidBody->setUserPointer(this);
 
     physWorld->addRigidBody(m_rigidBody.get());
 }

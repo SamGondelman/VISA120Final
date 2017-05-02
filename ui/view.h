@@ -112,6 +112,8 @@ private:
     Mode m_prevMode { CREATE };
     bool m_prevRightTouch { false };
     bool m_prevLeftTouch { false };
+    bool m_prevGrabbing { false };
+    Entity *m_grabbedEntity { nullptr };
     glm::vec3 m_paintLeft { glm::vec3(NAN) };
     glm::vec3 m_paintRight { glm::vec3(NAN) };
     glm::vec3 m_paintColor { glm::vec3(1.0f) };
@@ -166,6 +168,7 @@ private:
     void updatePoses();
     void updateInputs();
     void updateActions();
+    Entity *findClosestObject(glm::vec3 &p);
 
     void addImage(QString &s, QImage &img);
 

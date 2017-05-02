@@ -4,6 +4,7 @@
 #include "ResourceLoader.h"
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
+#include <glm/gtx/norm.hpp>
 
 #include "gl/shaders/CS123Shader.h"
 #include "CS123SceneData.h"
@@ -530,19 +531,20 @@ void View::drawHands(glm::mat4 &V, glm::mat4 &P) {
     program->applyMaterial(mat);
 
     if (m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::LEFT].bDeviceIsConnected) {
-        program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1)));
-        m_cone->draw();
+        program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) *
+                glm::translate(glm::vec3(0, 0.05, 0)) * glm::scale(glm::vec3(0.05, 0.20, 0.05)));
+        if (m_mode == CREATE) m_cube->draw();
+        else m_cylinder->draw();
     }
 
     mat.cAmbient = glm::vec4(0, 0, 0.5, 1);
-    mat.cDiffuse = glm::vec4(0.5, 0.5, 0.5, 1);
-    mat.cSpecular = glm::vec4(0.5, 0.5, 0.5, 1);
-    mat.shininess = 10.0;
     program->applyMaterial(mat);
 
     if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bDeviceIsConnected) {
-        program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) * glm::scale(glm::vec3(0.1, 0.25, 0.1)));
-        m_cone->draw();
+        program->setUniform("M", vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking) * glm::rotate(glm::radians(90.0f), glm::vec3(1, 0, 0)) *
+                glm::translate(glm::vec3(0, 0.05, 0)) * glm::scale(glm::vec3(0.05, 0.20, 0.05)));
+        if (m_mode == CREATE) m_cube->draw();
+        else m_cylinder->draw();
     }
 
     program->unbind();
@@ -663,7 +665,8 @@ void View::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
 
     // VISA 120 Final
-    if (event->key() == Qt::Key_R) m_world->makeCurrent();
+    if (event->key() == Qt::Key_T) m_mode = CREATE;
+    if (event->key() == Qt::Key_Y) m_mode = PAINT;
 }
 
 void View::keyReleaseEvent(QKeyEvent *event) {
@@ -740,6 +743,24 @@ void View::handleInput(const vr::VRControllerState_t &state, bool isLeftHand) {
     }
 }
 
+Entity *View::findClosestObject(glm::vec3 &p) {
+    Entity *res = nullptr;
+    float minDist = INFINITY;
+
+    // There should be a way to do this with Bullet?
+    for (auto &e : m_world->getEntities()) {
+        glm::mat4 m;
+        e.getModelMatrix(m);
+        glm::vec3 pos = m[3].xyz;
+        float dist = glm::distance2(pos, p);
+        if (dist < 0.01f && dist < minDist && e.m_rigidBody->getInvMass() != 0.0f) {
+            minDist = dist;
+            res = &e;
+        }
+    }
+    return res;
+}
+
 void View::updateActions() {
     // Box spawning
     if (m_mode == CREATE) {
@@ -800,9 +821,38 @@ void View::updateActions() {
             m_createTimeRight = 0.0f;
             m_prevRightTouch = false;
         }
+        if (_axisStates[RIGHT_TRIGGER] > 0.95f && !m_prevGrabbing) {
+            // start grabbing
+            m_prevGrabbing = true;
+            glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+            glm::vec3 pos = glm::vec3(M[3]);
+            m_grabbedEntity = findClosestObject(pos);
+            if (m_grabbedEntity) m_world->getPhysWorld()->removeRigidBody(m_grabbedEntity->m_rigidBody.get());
+        } else if (_axisStates[RIGHT_TRIGGER] > 0.95f && m_prevGrabbing && m_grabbedEntity) {
+            // move object around
+            btTransform t;
+            t.setIdentity();
+            glm::mat4 t2 = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+            t.setFromOpenGLMatrix((btScalar *) &t2);
+            m_grabbedEntity->m_rigidBody->setWorldTransform(t);
+            m_grabbedEntity->m_rigidBody->getMotionState()->setWorldTransform(t);
+            if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid) {
+                auto v = m_trackedHandPoses[Hand::RIGHT].vVelocity.v;
+                auto av = m_trackedHandPoses[Hand::RIGHT].vAngularVelocity.v;
+                m_grabbedEntity->m_rigidBody->setLinearVelocity(btVector3(v[0], v[1], v[2]));
+                m_grabbedEntity->m_rigidBody->setAngularVelocity(btVector3(av[0], av[1], av[2]));
+            }
+        } else if (_axisStates[RIGHT_TRIGGER] <= 0.95f) {
+            m_prevGrabbing = false;
+            if (m_grabbedEntity) {
+                // place object back in world (something about this is buggy?)
+                m_world->getPhysWorld()->addRigidBody(m_grabbedEntity->m_rigidBody.get());
+                m_grabbedEntity = nullptr;
+            }
+        }
     } else {
         // Painting
-        if (_axisStates[LEFT_TRIGGER] > 0.95) {
+        if (_axisStates[LEFT_TRIGGER] > 0.95f) {
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
             if (glm::isnan(m_paintLeft.x)) {
@@ -813,7 +863,7 @@ void View::updateActions() {
             }
         }
 
-        if (_axisStates[RIGHT_TRIGGER] > 0.95) {
+        if (_axisStates[RIGHT_TRIGGER] > 0.95f) {
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
             if (glm::isnan(m_paintRight.x)) {
@@ -894,11 +944,15 @@ void View::tick() {
             m_prevLeftTouch = false;
             m_prevRightTouch = false;
             m_currentTextureString = "";
+            m_prevGrabbing = false;
+            if (m_grabbedEntity) {
+                m_world->getPhysWorld()->addRigidBody(m_grabbedEntity->m_rigidBody.get());
+                m_grabbedEntity = nullptr;
+            }
         } else {
             m_paintLeft = glm::vec3(NAN);
             m_paintRight = glm::vec3(NAN);
         }
-        std::cout << (m_mode == CREATE ? "create" : "paint") << std::endl;
         m_prevMode = m_mode;
     }
 
@@ -950,7 +1004,7 @@ void View::getImageFromLink(QNetworkReply *reply) {
     }
 
     QImage img = QImage::fromData(reply->readAll());
-    img.save("test.png");
+//    img.save("test.png");
 
     m_currentTextureString = reply->url().toString();
     addImage(reply->url().toString(), img);
