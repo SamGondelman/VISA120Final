@@ -24,6 +24,6 @@ void main() {
     fragNor = vec4(nor, 1);
     fragAmb = vec4(ambient_color, 1);
     vec3 texCol = texture(tex, texc).xyz;
-    fragDiff = vec4(mix(diffuse_color, texCol, useTexture), 1);
+    fragDiff = vec4(diffuse_color * mix(vec3(1), texCol, useTexture), 1);
     fragSpec = vec4(specular_color, shininess);
 }

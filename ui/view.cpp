@@ -781,7 +781,7 @@ int View::findClosestObject(glm::vec3 &p) {
 void View::placeGrabbedObject() {
     m_grabbedEntity.mat.cDiffuse.xyz = glm::vec3(0.5f);
     // if on wall, make static (TODO: make these grabbable somehow)
-    bool onWall = m_grabbedEntity.p.getX() > 1.3f || m_grabbedEntity.p.getX() < -1.3f || m_grabbedEntity.p.getZ() > 0.7f || m_grabbedEntity.p.getZ() < -0.7f;
+    bool onWall = m_grabbedEntity.p.getX() > 1.3f || m_grabbedEntity.p.getX() < -1.3f || m_grabbedEntity.p.getZ() > 0.7f;
     m_world->getEntities().emplace_back(m_world->getPhysWorld(), ShapeType::CUBE, onWall ? 0.0f : 1.0f,
                                         m_grabbedEntity.p, m_grabbedEntity.s, m_grabbedEntity.mat, btQuaternion(m_grabbedEntity.r.x, m_grabbedEntity.r.y, m_grabbedEntity.r.z, m_grabbedEntity.r.w),
                                         m_grabbedEntity.v, m_grabbedEntity.av);
@@ -875,12 +875,12 @@ void View::updateActions() {
         } else if (_axisStates[RIGHT_TRIGGER] > 0.95f && m_prevGrabbing && m_didGrab) {
             // move object around
             glm::mat4 m = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
-            bool onWall = m_grabbedEntity.p.getX() > 1.3f || m_grabbedEntity.p.getX() < -1.3f || m_grabbedEntity.p.getZ() > 0.7f || m_grabbedEntity.p.getZ() < -0.7f;
+            bool onWall = m_grabbedEntity.p.getX() > 1.3f || m_grabbedEntity.p.getX() < -1.3f || m_grabbedEntity.p.getZ() > 0.7f;
             bool onCeiling = m_grabbedEntity.p.getY() > 2.0f;
             if (onWall) {
-                m_grabbedEntity.mat.cDiffuse.y = 1;
+                m_grabbedEntity.mat.cDiffuse.xyz = glm::vec3(0, 1, 0);
             } else if (onCeiling) {
-                m_grabbedEntity.mat.cDiffuse.z = 1;
+                m_grabbedEntity.mat.cDiffuse.xyz = glm::vec3(0, 0, 1);
             } else {
                 m_grabbedEntity.mat.cDiffuse.xyz = glm::vec3(0.5f);
             }
@@ -999,7 +999,7 @@ void View::tick() {
             } else if (c == "brown") {
                 m_paintColor = glm::vec3(0.545, 0.271, 0.075);
             } else if (c == "black") {
-                m_paintColor = glm::vec3(0);
+                m_paintColor = glm::vec3(0.1);
             } else if (c == "white") {
                 m_paintColor = glm::vec3(1);
             }
