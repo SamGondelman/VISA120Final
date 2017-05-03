@@ -677,6 +677,7 @@ void View::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_P) m_useAdaptiveExposure = !m_useAdaptiveExposure;
 
     // VISA 120 Final
+    if (event->key() == Qt::Key_R) m_world->makeCurrent();
     if (event->key() == Qt::Key_T) m_mode = CREATE;
     if (event->key() == Qt::Key_Y) m_mode = PAINT;
 }

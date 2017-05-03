@@ -5,7 +5,7 @@ grammar visa120grammar;
 public <phrases> = (<create> | <paint>);
 
 <create> = create (<object> | <animal>);
-<object> = (cloud | couch | pillow | water | tree | lamp | fishbowl | earth | star | planet | table | frame | television);
+<object> = (cloud | couch | pillow | water | tree | lamp | fishbowl | earth | star | planet | table | frame | television | rock);
 <animal> = (cat | dog | hamster | mouse | horse | shark | fish);
 
 <paint> = paint <color>;
