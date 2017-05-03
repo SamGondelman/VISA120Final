@@ -5,8 +5,8 @@ grammar visa120grammar;
 public <phrases> = (<create> | <paint>);
 
 <create> = create (<object> | <animal>);
-<object> = (couch | pillow | water | tree);
-<animal> = (cat | dog | hamster | mouse | horse);
+<object> = (cloud | couch | pillow | water | tree | lamp | fishbowl | earth | star | planet | table | frame | television);
+<animal> = (cat | dog | hamster | mouse | horse | shark | fish);
 
 <paint> = paint <color>;
-<color> = (red | green | blue | yellow | cyan | magenta | black | white);
+<color> = (red | green | blue | yellow | cyan | magenta | brown | black | white);

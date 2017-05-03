@@ -2,9 +2,6 @@
 
 #include "viewformat.h"
 #include "ResourceLoader.h"
-#include "glm/gtx/transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
-#include <glm/gtx/norm.hpp>
 
 #include "gl/shaders/CS123Shader.h"
 #include "CS123SceneData.h"
@@ -44,6 +41,7 @@ unsigned int View::m_fullscreenQuadVAO = 0;
 std::unordered_set<int> View::m_pressedKeys = std::unordered_set<int>();
 std::unordered_map<std::string, Texture2D> View::m_textureMap = std::unordered_map<std::string, Texture2D>();
 QMutex View::m_textureMutex;
+glm::vec3 View::m_viewDir;
 
 View::View(QWidget *parent) : QGLWidget(ViewFormat(), parent),
     m_fps(0.0f), m_createTimeLeft(0.0f), m_createTimeRight(0.0f),
@@ -586,6 +584,20 @@ void View::drawAction(glm::mat4& V, glm::mat4& P) {
             if (useTexture) program->setTexture("tex", m_textureMap[m_currentTextureString.toStdString()]);
             m_cube->draw();
         }
+
+        // draw grabbed object
+        if (m_didGrab) {
+            program->applyMaterial(m_grabbedEntity.mat);
+            glm::mat4 m = glm::translate(glm::vec3(m_grabbedEntity.p[0], m_grabbedEntity.p[1], m_grabbedEntity.p[2])) *
+                    glm::mat4_cast(m_grabbedEntity.r) *
+                    glm::scale(glm::vec3(m_grabbedEntity.s[0], m_grabbedEntity.s[1], m_grabbedEntity.s[2]));
+            program->setUniform("M", m);
+            int useTexture = m_textureMap.find(m_grabbedEntity.mat.textureMap.filename) != m_textureMap.end() ? 1 : 0;
+            program->setUniform("useTexture", useTexture);
+            if (useTexture) program->setTexture("tex", m_textureMap[m_grabbedEntity.mat.textureMap.filename]);
+            m_cube->draw();
+        }
+
         m_textureMutex.unlock();
         program->setUniform("useTexture", 0);
     } else {
@@ -678,6 +690,7 @@ void View::updatePoses() {
 
     if (m_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid) {
         m_hmdPose = glm::inverse(vrMatrixToQt(m_trackedDevicePose[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking));
+        m_viewDir = -glm::normalize(glm::vec3(m_hmdPose[0][2], m_hmdPose[1][2], m_hmdPose[2][2]));
     }
 
     if (m_hmd->IsTrackedDeviceConnected(m_hmd->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand))) {
@@ -743,22 +756,39 @@ void View::handleInput(const vr::VRControllerState_t &state, bool isLeftHand) {
     }
 }
 
-Entity *View::findClosestObject(glm::vec3 &p) {
-    Entity *res = nullptr;
+int View::findClosestObject(glm::vec3 &p) {
+    int res = -1;
     float minDist = INFINITY;
 
     // There should be a way to do this with Bullet?
-    for (auto &e : m_world->getEntities()) {
+    for (size_t i = 0; i < m_world->getEntities().size(); i++) {
         glm::mat4 m;
-        e.getModelMatrix(m);
+        m_world->getEntities()[i].getModelMatrix(m);
         glm::vec3 pos = m[3].xyz;
-        float dist = glm::distance2(pos, p);
-        if (dist < 0.01f && dist < minDist && e.m_rigidBody->getInvMass() != 0.0f) {
-            minDist = dist;
-            res = &e;
+        glm::quat r = glm::normalize(glm::quat(m));
+        glm::vec3 dist = glm::abs(glm::conjugate(r) * (pos - p));
+        glm::mat4 sm = m_world->getEntities()[i].getScale();
+        glm::vec3 s = glm::vec3(sm[0][0], sm[1][1], sm[2][2]) / 2.0f;
+        float d = glm::length(dist);
+        if (dist[0] <= s[0] && dist[1] <= s[1] && dist[2] <= s[2] && d < minDist && m_world->getEntities()[i].m_rigidBody->getInvMass() != 0.0f) {
+            minDist = d;
+            res = i;
         }
     }
     return res;
+}
+
+void View::placeGrabbedObject() {
+    m_grabbedEntity.mat.cDiffuse.xyz = glm::vec3(0.5f);
+    // if on wall, make static (TODO: make these grabbable somehow)
+    bool onWall = m_grabbedEntity.p.getX() > 1.3f || m_grabbedEntity.p.getX() < -1.3f || m_grabbedEntity.p.getZ() > 0.7f || m_grabbedEntity.p.getZ() < -0.7f;
+    m_world->getEntities().emplace_back(m_world->getPhysWorld(), ShapeType::CUBE, onWall ? 0.0f : 1.0f,
+                                        m_grabbedEntity.p, m_grabbedEntity.s, m_grabbedEntity.mat, btQuaternion(m_grabbedEntity.r.x, m_grabbedEntity.r.y, m_grabbedEntity.r.z, m_grabbedEntity.r.w),
+                                        m_grabbedEntity.v, m_grabbedEntity.av);
+    // if high up, turn off gravity
+    if (m_grabbedEntity.p.getY() > 2.0f) {
+        m_world->getEntities()[m_world->getEntities().size() - 1].m_rigidBody->setGravity(btVector3(0, 0, 0));
+    }
 }
 
 void View::updateActions() {
@@ -821,34 +851,76 @@ void View::updateActions() {
             m_createTimeRight = 0.0f;
             m_prevRightTouch = false;
         }
+
+        // grabbing
         if (_axisStates[RIGHT_TRIGGER] > 0.95f && !m_prevGrabbing) {
             // start grabbing
             m_prevGrabbing = true;
             glm::mat4 M = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
             glm::vec3 pos = glm::vec3(M[3]);
-            m_grabbedEntity = findClosestObject(pos);
-            if (m_grabbedEntity) m_world->getPhysWorld()->removeRigidBody(m_grabbedEntity->m_rigidBody.get());
-        } else if (_axisStates[RIGHT_TRIGGER] > 0.95f && m_prevGrabbing && m_grabbedEntity) {
+            int nearest = findClosestObject(pos);
+            m_didGrab = nearest != -1;
+            if (m_didGrab) {
+                glm::mat4 m;
+                m_world->getEntities()[nearest].getModelMatrix(m);
+                m_grabbedEntity.p = btVector3(m[3].x, m[3].y, m[3].z);
+                m_grabbedEntity.r = glm::normalize(glm::quat(m));
+                glm::mat4 sm = m_world->getEntities()[nearest].getScale();
+                m_grabbedEntity.s = btVector3(sm[0][0], sm[1][1], sm[2][2]);
+                m_grabbedEntity.mat = m_world->getEntities()[nearest].getMaterial();
+                // remove old entity
+                m_world->getPhysWorld()->removeRigidBody(m_world->getEntities()[nearest].m_rigidBody.get());
+                m_world->getEntities().erase(m_world->getEntities().begin()+nearest);
+            }
+        } else if (_axisStates[RIGHT_TRIGGER] > 0.95f && m_prevGrabbing && m_didGrab) {
             // move object around
-            btTransform t;
-            t.setIdentity();
-            glm::mat4 t2 = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
-            t.setFromOpenGLMatrix((btScalar *) &t2);
-            m_grabbedEntity->m_rigidBody->setWorldTransform(t);
-            m_grabbedEntity->m_rigidBody->getMotionState()->setWorldTransform(t);
+            glm::mat4 m = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+            bool onWall = m_grabbedEntity.p.getX() > 1.3f || m_grabbedEntity.p.getX() < -1.3f || m_grabbedEntity.p.getZ() > 0.7f || m_grabbedEntity.p.getZ() < -0.7f;
+            bool onCeiling = m_grabbedEntity.p.getY() > 2.0f;
+            if (onWall) {
+                m_grabbedEntity.mat.cDiffuse.y = 1;
+            } else if (onCeiling) {
+                m_grabbedEntity.mat.cDiffuse.z = 1;
+            } else {
+                m_grabbedEntity.mat.cDiffuse.xyz = glm::vec3(0.5f);
+            }
+            m_grabbedEntity.p = btVector3(m[3].x, m[3].y, m[3].z);
+            m_grabbedEntity.r = glm::normalize(glm::quat(m));
             if (m_trackedHandPoses[Hand::RIGHT].bPoseIsValid) {
                 auto v = m_trackedHandPoses[Hand::RIGHT].vVelocity.v;
                 auto av = m_trackedHandPoses[Hand::RIGHT].vAngularVelocity.v;
-                m_grabbedEntity->m_rigidBody->setLinearVelocity(btVector3(v[0], v[1], v[2]));
-                m_grabbedEntity->m_rigidBody->setAngularVelocity(btVector3(av[0], av[1], av[2]));
+                m_grabbedEntity.v = btVector3(v[0], v[1], v[2]);
+                m_grabbedEntity.av = btVector3(av[0], av[1], av[2]);
             }
         } else if (_axisStates[RIGHT_TRIGGER] <= 0.95f) {
             m_prevGrabbing = false;
-            if (m_grabbedEntity) {
-                // place object back in world (something about this is buggy?)
-                m_world->getPhysWorld()->addRigidBody(m_grabbedEntity->m_rigidBody.get());
-                m_grabbedEntity = nullptr;
+            if (m_didGrab) {
+                // place object back in world
+                placeGrabbedObject();
+                m_didGrab = false;
             }
+        }
+
+        // scaling
+        if (_axisStates[LEFT_TRIGGER] > 0.95f && m_didGrab && !m_prevScaling) {
+            if (m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bPoseIsValid) {
+                glm::mat4 M1 = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
+                glm::mat4 M2 = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+                m_scalingVec = glm::vec3(M1[3] - M2[3]);
+                m_objectScale = m_grabbedEntity.s;
+                m_prevScaling = true;
+            }
+        } else if (_axisStates[LEFT_TRIGGER] > 0.95f && m_didGrab && m_prevScaling) {
+            if (m_trackedHandPoses[Hand::LEFT].bPoseIsValid && m_trackedHandPoses[Hand::RIGHT].bPoseIsValid) {
+                glm::mat4 M1 = vrMatrixToQt(m_trackedHandPoses[Hand::LEFT].mDeviceToAbsoluteTracking);
+                glm::mat4 M2 = vrMatrixToQt(m_trackedHandPoses[Hand::RIGHT].mDeviceToAbsoluteTracking);
+                glm::vec3 sc1 = glm::conjugate(glm::quat(M2)) * m_scalingVec;
+                glm::vec3 sc2 = glm::conjugate(glm::quat(M2)) * glm::vec3(M1[3] - M2[3]);
+                glm::mat4 s = glm::scale(glm::abs(glm::vec3(sc2[0]/sc1[0], sc2[1]/sc1[1], sc2[2]/sc1[2]))) * glm::scale(glm::vec3(m_objectScale[0], m_objectScale[1], m_objectScale[2]));
+                m_grabbedEntity.s = btVector3(s[0][0], s[1][1], s[2][2]);
+            }
+        } else {
+            m_prevScaling = false;
         }
     } else {
         // Painting
@@ -901,9 +973,7 @@ void View::tick() {
     while (voce::getRecognizerQueueSize() > 0) {
         std::string s = voce::popRecognizedString();
 
-        if (s.rfind("exit") != std::string::npos) {
-//            exit(0);
-        } else if (s.rfind("create") != std::string::npos) {
+        if (s.rfind("create") != std::string::npos) {
             QString c = QString::fromStdString(s);
             c.replace("create ", "");
             QNetworkRequest request;
@@ -926,6 +996,8 @@ void View::tick() {
                 m_paintColor = glm::vec3(0, 1, 1);
             } else if (c == "magenta") {
                 m_paintColor = glm::vec3(1, 0, 1);
+            } else if (c == "brown") {
+                m_paintColor = glm::vec3(0.545, 0.271, 0.075);
             } else if (c == "black") {
                 m_paintColor = glm::vec3(0);
             } else if (c == "white") {
@@ -945,9 +1017,10 @@ void View::tick() {
             m_prevRightTouch = false;
             m_currentTextureString = "";
             m_prevGrabbing = false;
-            if (m_grabbedEntity) {
-                m_world->getPhysWorld()->addRigidBody(m_grabbedEntity->m_rigidBody.get());
-                m_grabbedEntity = nullptr;
+            m_prevScaling = false;
+            if (m_didGrab) {
+                placeGrabbedObject();
+                m_didGrab = false;
             }
         } else {
             m_paintLeft = glm::vec3(NAN);

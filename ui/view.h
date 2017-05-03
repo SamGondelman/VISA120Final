@@ -11,8 +11,14 @@
 #include <QMutex>
 
 #include "glm/glm.hpp"
+#include "glm/gtx/transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include <glm/gtx/norm.hpp>
 
 #include <openvr.h>
+
+#include <CS123SceneData.h>
+#include <LinearMath/btVector3.h>
 
 class CS123Shader;
 class FBO;
@@ -25,7 +31,6 @@ struct Light;
 class Player;
 class Texture2D;
 class PhysicsWorld;
-class Entity;
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -75,6 +80,15 @@ enum Mode {
     PAINT
 };
 
+struct GrabbedEntity {
+    btVector3 p;
+    btVector3 s;
+    glm::quat r;
+    CS123SceneMaterial mat;
+    btVector3 v;
+    btVector3 av;
+} typedef GrabbedEntity;
+
 class View : public QGLWidget {
     Q_OBJECT
 
@@ -98,6 +112,8 @@ public:
     static QMutex m_textureMutex;
     QString m_currentTextureString { "" };
 
+    static glm::vec3 m_viewDir;
+
 private:
     QTime m_time;
     QTimer m_timer;
@@ -113,7 +129,11 @@ private:
     bool m_prevRightTouch { false };
     bool m_prevLeftTouch { false };
     bool m_prevGrabbing { false };
-    Entity *m_grabbedEntity { nullptr };
+    GrabbedEntity m_grabbedEntity;
+    bool m_didGrab { false };
+    bool m_prevScaling { false };
+    glm::vec3 m_scalingVec;
+    btVector3 m_objectScale;
     glm::vec3 m_paintLeft { glm::vec3(NAN) };
     glm::vec3 m_paintRight { glm::vec3(NAN) };
     glm::vec3 m_paintColor { glm::vec3(1.0f) };
@@ -168,7 +188,8 @@ private:
     void updatePoses();
     void updateInputs();
     void updateActions();
-    Entity *findClosestObject(glm::vec3 &p);
+    int findClosestObject(glm::vec3 &p);
+    void placeGrabbedObject();
 
     void addImage(QString &s, QImage &img);
 

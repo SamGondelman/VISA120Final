@@ -13,10 +13,9 @@ PhysicsWorld::PhysicsWorld() : World(":/shaders/shader.vert", ":/shaders/shader.
 }
 
 void PhysicsWorld::makeCurrent() {
-    View::m_player->setEye(glm::vec3(4, 2, 4));
-    View::m_player->setCenter(glm::vec3(0));
     m_lights.clear();
     m_lights.emplace_back(glm::vec3(-1.0f), glm::vec3(0.7f));
+    m_lights.emplace_back(glm::vec3(-1.0f), glm::vec3(0.1f));
 
     World::makeCurrent();
 
@@ -59,6 +58,7 @@ void PhysicsWorld::makeCurrent() {
 }
 
 void PhysicsWorld::update(float dt) {
+    m_lights[m_lights.size() - 1].dir = View::m_viewDir;
     World::update(dt);
 }
 
